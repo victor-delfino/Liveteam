@@ -2,6 +2,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 
 import java.io.OutputStream;
 
@@ -14,7 +15,7 @@ public class PDFGenerator {
 
             try (PDPageContentStream contentStream = new PDPageContentStream(document, page)) {
                 contentStream.beginText();
-                contentStream.setFont(PDType1Font.HELVETICA_BOLD, 16);
+                contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 16);
                 contentStream.newLineAtOffset(50, 700);
                 contentStream.setLeading(20f);
 
@@ -23,7 +24,7 @@ public class PDFGenerator {
                 contentStream.newLine();
 
                 // Adiciona o conteúdo
-                contentStream.setFont(PDType1Font.HELVETICA, 12);
+                contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
                 contentStream.showText(conteudo);
 
                 contentStream.endText();
