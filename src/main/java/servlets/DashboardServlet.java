@@ -39,10 +39,38 @@ public class DashboardServlet extends HttpServlet {
             return;
         }
 
-        LocalDate today = LocalDate.now();
-        int dia = today.getDayOfMonth();
-        int mes = today.getMonthValue();
-        int ano = today.getYear();
+        // --- MODIFICAÇÃO AQUI: RECEBER DIA, MÊS E ANO DOS PARÂMETROS DA REQUISIÇÃO ---
+        int dia;
+        int mes;
+        int ano;
+
+        // Tenta obter os parâmetros 'dia', 'mes', 'ano' da URL.
+        // Se não existirem (e.g., primeira vez que entra no dashboard sem ter vindo de um dia específico),
+        // usa a data atual.
+        try {
+            String diaParam = request.getParameter("dia");
+            String mesParam = request.getParameter("mes");
+            String anoParam = request.getParameter("ano");
+
+            if (diaParam != null && mesParam != null && anoParam != null) {
+                dia = Integer.parseInt(diaParam);
+                mes = Integer.parseInt(mesParam);
+                ano = Integer.parseInt(anoParam);
+            } else {
+                // Se os parâmetros não foram fornecidos, use a data atual
+                LocalDate today = LocalDate.now();
+                dia = today.getDayOfMonth();
+                mes = today.getMonthValue();
+                ano = today.getYear();
+            }
+        } catch (NumberFormatException e) {
+            // Caso os parâmetros sejam inválidos (não números), use a data atual
+            LocalDate today = LocalDate.now();
+            dia = today.getDayOfMonth();
+            mes = today.getMonthValue();
+            ano = today.getYear();
+            System.err.println("Parâmetros de data inválidos. Usando a data atual: " + e.getMessage());
+        }
 
         Connection conn = null;
 
@@ -126,7 +154,7 @@ public class DashboardServlet extends HttpServlet {
             }
 
             // ----------- DADOS DOS ÚLTIMOS 7 DIAS PARA GRÁFICOS SEMANAIS -----------
-            LocalDate hoje = LocalDate.now();
+            LocalDate hoje = LocalDate.of(ano, mes, dia);
             int[] caloriasSemana = new int[7];
             int[] metaCaloriasSemana = new int[7];
             int[] bateuMetaCaloriasSemana = new int[7];

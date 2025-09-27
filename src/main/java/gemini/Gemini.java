@@ -48,7 +48,7 @@ public class Gemini {
                     .put(new JSONObject().put("parts", partsArray)));
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(new URI("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + API_KEY))
+                    .uri(new URI("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(data.toString()))
                     .build();

@@ -111,7 +111,7 @@
 </style>
 
 <div class="main-container">
-    <h2 style="text-align:center; margin-top: 30px;">Meu Dashboard de Hoje e Últimos 7 dias</h2>
+    <h2 style="text-align:center; margin-top: 30px;">Meu Dashboard</h2>
 
     <%
         int totalCalorias = request.getAttribute("totalCalorias") != null ? (Integer) request.getAttribute("totalCalorias") : 0;
@@ -347,7 +347,7 @@
     } else if (porcentagemAgua < 100 && metaAgua > 0 && aguaConsumida < metaAgua) {
         aguaBar.style.background = "#2196f3";
         aguaBar.classList.remove("red");
-        aguaAviso.innerHTML = "<span style='color:#e53935;font-weight:bold;'>Você ainda não atingiu sua meta de água hoje!</span>";
+        aguaAviso.innerHTML = "<span style='color:#e53935;font-weight:bold;'>Você ainda não atingiu sua meta de água!</span>";
     } else {
         aguaBar.style.background = "#2196f3";
         aguaBar.classList.remove("red");

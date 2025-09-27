@@ -139,9 +139,9 @@ public class ExibirDietaServlet extends HttpServlet {
                 "      \"calorias_totais\": \"[int: estimativa de calorias totais]\",\n" +
                 "       \"meta_agua\": \"[int: litros ]\"\n" +
                 "      \"macronutrientes\": {\n" +
-                "        \"proteinas\": \"[int: percentual d]\",\n" +
-                "        \"carboidratos\": \"[int: percentual ]\",\n" +
-                "        \"gorduras\": \"[int: percentual ]\"\n" +
+                "        \"proteinas\": \"[int: Gramas d]\",\n" +
+                "        \"carboidratos\": \"[int: Gramas ]\",\n" +
+                "        \"gorduras\": \"[int: Gramas ]\"\n" +
                 "        \"meta_agua\": \"[int: litros ]\"\n" +
                 "      },\n" +
                 "      \"refeicoes\": {\n" +
@@ -297,9 +297,9 @@ public class ExibirDietaServlet extends HttpServlet {
                 if (macroJson != null) {
                     out.println("<h3>Macronutrientes:</h3>");
                     out.println("<ul>");
-                    out.println("<li><strong>Proteínas:</strong> " + macroJson.optString("proteinas") + "%</li>");
-                    out.println("<li><strong>Carboidratos:</strong> " + macroJson.optString("carboidratos") + "%</li>");
-                    out.println("<li><strong>Gorduras:</strong> " + macroJson.optString("gorduras") + "%</li>");
+                    out.println("<li><strong>Proteínas:</strong> " + macroJson.optString("proteinas") + "G</li>");
+                    out.println("<li><strong>Carboidratos:</strong> " + macroJson.optString("carboidratos") + "G</li>");
+                    out.println("<li><strong>Gorduras:</strong> " + macroJson.optString("gorduras") + "G</li>");
                     out.println("</ul>");
                 }
 

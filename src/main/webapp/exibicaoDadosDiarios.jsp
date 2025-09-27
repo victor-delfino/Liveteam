@@ -24,10 +24,27 @@
 <body>
 
     <%@ include file="WEB-INF/jspf/header.jspf" %>
+<%
+            // Recuperar parâmetros da data
+            String dia = request.getParameter("dia");
+            String mes = request.getParameter("mes");
+            String ano = request.getParameter("ano");
 
+            // Format the date for display, handle nulls for robustness
+            String formattedDate = "Data Inválida";
+            try {
+                if (dia != null && mes != null && ano != null) {
+                    LocalDate dateFromParams = LocalDate.of(Integer.parseInt(ano), Integer.parseInt(mes), Integer.parseInt(dia));
+                    formattedDate = dateFromParams.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                }
+            } catch (Exception e) {
+                // Log or handle the parsing error if needed
+                System.err.println("Error parsing date parameters: " + e.getMessage());
+            }
+        %>
+        
     <div class="container data-container">
-        <h1 class="mt-4 data-title"><i class="ph ph-calendar-blank"></i> Dados do Dia (<%= LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) %>)</h1>
-
+        <h1 class="mt-4 data-title"><i class="ph ph-calendar-blank"></i> Dados do Dia (<%= formattedDate %>)</h1>
         <%
             // Verificar se o usuário está logado
             String idUsuarioStr = (String) session.getAttribute("idUsuario");
@@ -37,10 +54,6 @@
                 return;
             }
 
-            // Recuperar parâmetros da data
-            String dia = request.getParameter("dia");
-            String mes = request.getParameter("mes");
-            String ano = request.getParameter("ano");
 
             // Inicialização de variáveis para armazenar os dados do banco
             String cafeDaManha = "nenhum", almoco = "nenhum", jantar = "nenhum", lanches = "nenhum", observacoesAlimentacao = "nenhum";
@@ -224,7 +237,7 @@
         </div>
         <div style="display: flex; justify-content: center; margin: 32px 0;">
             <button 
-                onclick="window.location.href='/Liveteam/dashboard'"
+                onclick="window.location.href='/Liveteam/dashboard?dia=<%= dia %>&mes=<%= mes %>&ano=<%= ano %>'"
                 style="
                     background: #23272b;
                     color: #f7f7f7;
