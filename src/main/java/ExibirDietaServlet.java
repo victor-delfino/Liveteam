@@ -138,7 +138,7 @@ public class ExibirDietaServlet extends HttpServlet {
                 "      \"objetivo\": \"[string: objetivo principal da dieta]\",\n" +
                 "      \"calorias_totais\": \"[int: estimativa de calorias totais]\",\n" +
                 "       \"meta_agua\": \"[int: litros ]\"\n" +
-                "      \"macronutrientes\": {\n" +
+                "      \"meta_macronutrientes\": {\n" +
                 "        \"proteinas\": \"[int: Gramas d]\",\n" +
                 "        \"carboidratos\": \"[int: Gramas ]\",\n" +
                 "        \"gorduras\": \"[int: Gramas ]\"\n" +
@@ -293,9 +293,9 @@ public class ExibirDietaServlet extends HttpServlet {
                 out.println("<p><strong>Objetivo:</strong> " + planoDietaJson.optString("objetivo") + "</p>");
                 out.println("<p><strong>Calorias Totais Estimadas:</strong> " + planoDietaJson.optString("calorias_totais") + "kcal</p>");
 
-                JSONObject macroJson = planoDietaJson.optJSONObject("macronutrientes");
+                JSONObject macroJson = planoDietaJson.optJSONObject("meta_macronutrientes");
                 if (macroJson != null) {
-                    out.println("<h3>Macronutrientes:</h3>");
+                    out.println("<h3>Meta de Macronutrientes:</h3>");
                     out.println("<ul>");
                     out.println("<li><strong>Proteínas:</strong> " + macroJson.optString("proteinas") + "G</li>");
                     out.println("<li><strong>Carboidratos:</strong> " + macroJson.optString("carboidratos") + "G</li>");
