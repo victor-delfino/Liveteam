@@ -476,36 +476,93 @@ document.addEventListener("DOMContentLoaded", () => {
     const fecharPlano = document.getElementById("closePlanoModal");
     const conteudoPlano = document.getElementById("conteudoPlano");
 
-    abrirPlano.addEventListener("click", async () => {
-        planoModal.style.display = "flex";
+abrirPlano.addEventListener("click", async () => {
+    planoModal.style.display = "flex";
+    conteudoPlano.innerHTML = "<p style='text-align:center;color:#A0D683;'>Carregando...</p>";
 
-        conteudoPlano.innerHTML = "<p style='text-align:center;color:#A0D683;'>Carregando...</p>";
-
-        try {
-            const resposta = await fetch("UltimoPlanoServlet");
-            const data = await resposta.json();
+    try {
+        const resposta = await fetch("UltimoPlanoServlet");
+        const data = await resposta.json();
+        
+        console.log("Resposta do servidor:", data); // Debug
+        
+        if (data.erro) {
+            conteudoPlano.innerHTML = `<p style='color:red; text-align:center;'>${data.erro}</p>`;
+        } else if (data.plano_completo) {
+            // Montar HTML formatado em vez de JSON puro
+            let html = "";
+            const plano = data.plano_completo;
             
-            if (data.erro) {
-                // Caso o Servlet retorne um erro (ex: não encontrado ou falha interna)
-                conteudoPlano.innerHTML = `<p style='color:red; text-align:center;'>Erro: ${data.erro}</p>`;
-            } else if (data.plano_completo) {
-                // Caso o Servlet retorne o JSON completo
-                conteudoPlano.innerHTML = `
-                    <p style="font-size:0.9em; color:#ddd; text-align:center; margin-bottom:1em;">
-                        Plano gerado em: ${data.data_geracao || 'N/A'}
-                    </p>
-                    <pre>${JSON.stringify(data.plano_completo, null, 4)}</pre>
-                `;
-            } else {
-                 // Resposta inesperada
-                 conteudoPlano.innerHTML = "<p style='color:red; text-align:center;'>Resposta do servidor inválida.</p>";
+            html += "<p style='font-size:0.9em; color:#ddd; text-align:center; margin-bottom:1em;'>Plano gerado em: " + (data.data_geracao || 'N/A') + "</p>";
+            
+            // --- DIETA ---
+            if (plano.plano_dieta) {
+                const dieta = plano.plano_dieta;
+                html += "<strong style='color:#A0D683; font-size:1.1em;'>📋 DIETA</strong><br>";
+                html += "<strong>Objetivo:</strong> " + (dieta.objetivo || '-') + "<br>";
+                html += "<strong>Calorias Totais:</strong> " + (dieta.calorias_totais || '-') + " kcal<br>";
+                html += "<strong>Meta de Água:</strong> " + (dieta.meta_agua || '-') + " L<br>";
+                
+                if (dieta.meta_macronutrientes) {
+                    const macro = dieta.meta_macronutrientes;
+                    html += "<strong>Macronutrientes:</strong><br>";
+                    html += "&nbsp;&nbsp;Proteínas: " + (macro.proteinas_g || '-') + "g<br>";
+                    html += "&nbsp;&nbsp;Carboidratos: " + (macro.carboidratos_g || '-') + "g<br>";
+                    html += "&nbsp;&nbsp;Gorduras: " + (macro.gorduras_g || '-') + "g<br>";
+                }
+                
+                if (dieta.refeicoes) {
+                    html += "<strong>Refeições:</strong><br>";
+                    html += "<strong>Café da Manhã:</strong><br>" + ((dieta.refeicoes.cafe_da_manha || '-').replace(/\+/g, '<br>&nbsp;&nbsp;+ ')) + "<br><br>";
+                    html += "<strong>Almoço:</strong><br>" + ((dieta.refeicoes.almoco || '-').replace(/\+/g, '<br>&nbsp;&nbsp;+ ')) + "<br><br>";
+                    html += "<strong>Lanche da Tarde:</strong><br>" + ((dieta.refeicoes.lanche_tarde || '-').replace(/\+/g, '<br>&nbsp;&nbsp;+ ')) + "<br><br>";
+                    html += "<strong>Jantar:</strong><br>" + ((dieta.refeicoes.jantar || '-').replace(/\+/g, '<br>&nbsp;&nbsp;+ ')) + "<br><br>";
+                }
+                
+                if (dieta.observacoes) {
+                    html += "<strong>Observações:</strong> " + dieta.observacoes + "<br><br>";
+                }
             }
-
-        } catch (e) {
-            console.error("Erro ao carregar dados do plano:", e);
-            conteudoPlano.innerHTML = "<p style='color:red; text-align:center;'>Erro ao carregar dados. Verifique o log do console.</p>";
+            
+            // --- TREINO ---
+            if (plano.plano_treino) {
+                const treino = plano.plano_treino;
+                html += "<strong style='color:#A0D683; font-size:1.1em;'>💪 TREINO</strong><br>";
+                html += "<strong>Divisão:</strong> " + (treino.divisao || '-') + "<br>";
+                html += "<strong>Justificativa:</strong> " + (treino.justificativa_divisao || '-') + "<br>";
+                
+                // Subtreinos (A, B, C, etc)
+                for (const [chave, subtreino] of Object.entries(treino)) {
+                    if (chave.startsWith('treino_')) {
+                        const nomeTreino = chave.replace('treino_', '').toUpperCase();
+                        html += "<strong>Treino " + nomeTreino + ":</strong><br>";
+                        html += "&nbsp;&nbsp;<strong>Foco:</strong> " + (subtreino.foco || '-') + "<br>";
+                        
+                        if (subtreino.exercicios && subtreino.exercicios.length > 0) {
+                            html += "&nbsp;&nbsp;<strong>Exercícios:</strong><br>";
+                            subtreino.exercicios.forEach(ex => {
+                                html += "&nbsp;&nbsp;&nbsp;&nbsp;- " + ex.nome + " | " + ex.series + " séries x " + ex.repeticoes + "<br>";
+                            });
+                        }
+                        html += "<br>";
+                    }
+                }
+                
+                if (treino.observacoes) {
+                    html += "<strong>Observações:</strong> " + treino.observacoes + "<br>";
+                }
+            }
+            
+            conteudoPlano.innerHTML = html;
+        } else {
+            conteudoPlano.innerHTML = "<p style='color:red; text-align:center;'>Resposta do servidor inválida.</p>";
         }
-    });
+
+    } catch (e) {
+        console.error("Erro ao carregar dados do plano:", e);
+        conteudoPlano.innerHTML = "<p style='color:red; text-align:center;'>Erro ao carregar dados. Verifique o console.</p>";
+    }
+});
 
     fecharPlano.addEventListener("click", () => {
         planoModal.style.display = "none";
@@ -525,6 +582,65 @@ document.addEventListener("DOMContentLoaded", () => {
         modalAtualizarPlano.style.display = "none";
     });
 
+// ------------------ FORM ATUALIZAR PLANO ------------------
+    const formAtualizarPlano = document.getElementById("formAtualizarPlano");
+    const respostaAtualizacao = document.getElementById("respostaAtualizacao");
+
+    formAtualizarPlano.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        
+        const pesoAtual = document.getElementById("pesoAtual").value;
+        const duracaoTreinoAtual = document.getElementById("duracaoTreinoAtual").value;
+        const comentario = document.getElementById("comentarioAtualiza").value;
+        
+        if (!pesoAtual || !duracaoTreinoAtual) {
+            respostaAtualizacao.innerHTML = "<p style='color:#e53935;'>❌ Peso atual e duração do treino são obrigatórios!</p>";
+            return;
+        }
+        
+        const btnSubmit = formAtualizarPlano.querySelector("button[type='submit']");
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = "Processando...";
+        respostaAtualizacao.innerHTML = "<p style='color:#A0D683;'>⏳ Gerando novo plano...</p>";
+        
+        try {
+            const resposta = await fetch("AtualizarPlanoServlet", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    pesoAtual: pesoAtual,
+                    duracaoTreinoAtual: duracaoTreinoAtual,
+                    comentario: comentario
+                })
+            });
+            
+            const data = await resposta.json();
+            
+            console.log("Resposta do servidor:", data);
+            
+            if (data.sucesso) {
+                respostaAtualizacao.innerHTML = "<p style='color:#4caf50;'>✅ " + data.mensagem + "</p>";
+                
+                // Recarregar o plano após 2 segundos
+                setTimeout(() => {
+                    modalAtualizarPlano.style.display = "none";
+                    planoModal.style.display = "flex";
+                    abrirPlano.click(); // Recarrega o conteúdo do plano
+                }, 2000);
+            } else {
+                respostaAtualizacao.innerHTML = "<p style='color:#e53935;'>❌ Erro: " + data.erro + "</p>";
+            }
+            
+        } catch (e) {
+            console.error("Erro ao enviar recalibragem:", e);
+            respostaAtualizacao.innerHTML = "<p style='color:#e53935;'>❌ Erro ao processar a solicitação. Verifique o console.</p>";
+        } finally {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = "Enviar Recalibragem";
+        }
+    });
 
     // fechar modal clicando fora
     window.onclick = function(event) {
