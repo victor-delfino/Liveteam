@@ -1,83 +1,81 @@
 package servlets;
 
-import java.sql.*;
 import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Properties;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+// Esta classe contém a lógica para salvar o plano gerado pela IA no banco de dados.
 public class SalvarPlanoNoBanco {
     
-    // Método auxiliar para limpar strings numéricas (ex: "2600kcal" -> 2600)
+    // [KEEPING parseJsonInt HERE]
     private int parseJsonInt(JSONObject json, String key) {
         Object value = json.opt(key);
         if (value == null) return 0;
         
         String s = value.toString().toLowerCase().trim();
-        
-        // Tenta remover unidades comuns como 'kcal', 'g', etc.
         s = s.replaceAll("[^0-9.]", ""); 
         
         try {
-            // Converte para int
-            return Integer.parseInt(s);
+            return Integer.parseInt(s); 
         } catch (NumberFormatException e) {
-            // Se falhar a conversão (ex: string vazia ou formato inválido), retorna 0
             return 0;
         }
     }
 
+    /**
+     * Salva o plano completo (dieta e treino) no banco de dados.
+     */
     public void salvarPlanoNoBanco(int idUsuario, JSONObject planoDietaJson, JSONObject planoTreinoJson) throws Exception {
+        
         Connection conn = null;
         PreparedStatement psPlano = null, psDieta = null, psMacro = null, psRefeicoes = null;
-        PreparedStatement psTreino = null, psSubtreino = null, psExercicio = null;
+        PreparedStatement psTreino = null; 
         ResultSet rsKeys = null;
 
         try {
-            // Carregar propriedades do arquivo db.properties
+            // 1. Configurar Conexão (Criando a conexão aqui, como estava antes)
             Properties props = new Properties();
             InputStream input = getClass().getClassLoader().getResourceAsStream("db.properties");
-            if (input == null) {
-                throw new Exception("Arquivo db.properties não encontrado.");
-            }
+            if (input == null) throw new Exception("Arquivo db.properties não encontrado.");
             props.load(input);
 
-            String url = props.getProperty("db.url");
-            String username = props.getProperty("db.username");
-            String password = props.getProperty("db.password");
-            String driver = props.getProperty("db.driver");
-
-            Class.forName(driver);
-
-            conn = DriverManager.getConnection(url, username, password);
-            conn.setAutoCommit(false);
-
-            // 1. Inserir plano (ID)
+            Class.forName(props.getProperty("db.driver"));
+            conn = DriverManager.getConnection(
+                props.getProperty("db.url"),
+                props.getProperty("db.username"),
+                props.getProperty("db.password")
+            );
+            conn.setAutoCommit(false); // Inicia a transação
+            
+            // 2. Inserir plano (ID)
             String sqlPlano = "INSERT INTO plano (id_usuario) VALUES (?)";
             psPlano = conn.prepareStatement(sqlPlano, Statement.RETURN_GENERATED_KEYS);
-            psPlano.setInt(1, idUsuario);
+            psPlano.setInt(1, idUsuario); 
             psPlano.executeUpdate();
             rsKeys = psPlano.getGeneratedKeys();
-            if (!rsKeys.next()) {
-                throw new Exception("Falha ao obter o ID do plano.");
-            }
+            if (!rsKeys.next()) throw new Exception("Falha ao obter o ID do plano.");
             int planoId = rsKeys.getInt(1);
             rsKeys.close();
             
-            // 2. Inserir dieta
+            // 3. Inserir dieta
             String sqlDieta = "INSERT INTO dieta (plano_id, objetivo, calorias_totais, observacoes, meta_agua) VALUES (?, ?, ?, ?, ?)";
             psDieta = conn.prepareStatement(sqlDieta, Statement.RETURN_GENERATED_KEYS);
             psDieta.setInt(1, planoId);
             psDieta.setString(2, planoDietaJson.optString("objetivo"));
             
-            // USANDO O NOVO MÉTODO AUXILIAR PARA CALORIAS
             int caloriasTotais = parseJsonInt(planoDietaJson, "calorias_totais");
             psDieta.setInt(3, caloriasTotais); 
             
             psDieta.setString(4, planoDietaJson.optString("observacoes"));
 
-            // USANDO O NOVO MÉTODO AUXILIAR PARA META_AGUA
             int metaAgua = parseJsonInt(planoDietaJson, "meta_agua");
             if (metaAgua > 0) {
                  psDieta.setInt(5, metaAgua);
@@ -87,20 +85,17 @@ public class SalvarPlanoNoBanco {
 
             psDieta.executeUpdate();
             rsKeys = psDieta.getGeneratedKeys();
-            if (!rsKeys.next()) {
-                throw new Exception("Falha ao obter o ID da dieta.");
-            }
+            if (!rsKeys.next()) throw new Exception("Falha ao obter o ID da dieta.");
             int dietaId = rsKeys.getInt(1);
             rsKeys.close();
 
-            // 3. Inserir macronutrientes 
+            // 4. Inserir macronutrientes 
             JSONObject macro = planoDietaJson.optJSONObject("meta_macronutrientes");
             if (macro != null) {
                 String sqlMacro = "INSERT INTO macronutrientes (dieta_id, proteinas, carboidratos, gorduras) VALUES (?, ?, ?, ?)";
                 psMacro = conn.prepareStatement(sqlMacro);
                 psMacro.setInt(1, dietaId);
                 
-                // USANDO O NOVO MÉTODO AUXILIAR PARA MACROS
                 psMacro.setInt(2, parseJsonInt(macro, "proteinas_g")); 
                 psMacro.setInt(3, parseJsonInt(macro, "carboidratos_g"));
                 psMacro.setInt(4, parseJsonInt(macro, "gorduras_g"));
@@ -108,7 +103,7 @@ public class SalvarPlanoNoBanco {
                 psMacro.executeUpdate();
             }
 
-            // 4. Inserir refeicoes 
+            // 5. Inserir refeicoes 
             JSONObject refeicoes = planoDietaJson.optJSONObject("refeicoes");
             if (refeicoes != null) {
                 String sqlRefeicoes = "INSERT INTO refeicoes (dieta_id, cafe_da_manha, almoco, lanche_tarde, jantar) VALUES (?, ?, ?, ?, ?)";
@@ -121,7 +116,7 @@ public class SalvarPlanoNoBanco {
                 psRefeicoes.executeUpdate();
             }
 
-            // 5. Inserir treino
+            // 6. Inserir treino
             String sqlTreino = "INSERT INTO treino (plano_id, divisao, justificativa_divisao, observacoes) VALUES (?, ?, ?, ?)";
             psTreino = conn.prepareStatement(sqlTreino, Statement.RETURN_GENERATED_KEYS);
             psTreino.setInt(1, planoId);
@@ -130,25 +125,23 @@ public class SalvarPlanoNoBanco {
             psTreino.setString(4, planoTreinoJson.optString("observacoes"));
             psTreino.executeUpdate();
             rsKeys = psTreino.getGeneratedKeys();
-            if (!rsKeys.next()) {
-                throw new Exception("Falha ao obter o ID do treino.");
-            }
+            if (!rsKeys.next()) throw new Exception("Falha ao obter o ID do treino.");
             int treinoId = rsKeys.getInt(1);
             rsKeys.close();
 
-            // 6. Salvar subtreinos e exercícios
+            // 7. Salvar subtreinos e exercícios (A, B, C, etc.)
             salvarSubtreinoComExercicios(conn, treinoId, "A", planoTreinoJson.optJSONObject("treino_a"));
             salvarSubtreinoComExercicios(conn, treinoId, "B", planoTreinoJson.optJSONObject("treino_b"));
             salvarSubtreinoComExercicios(conn, treinoId, "C", planoTreinoJson.optJSONObject("treino_c"));
 
-            conn.commit(); 
+            conn.commit(); // Finaliza a transação com sucesso
 
         } catch (Exception e) {
             if (conn != null) {
                  System.err.println("Erro na transação. Realizando rollback.");
                  conn.rollback();
             }
-            throw e;
+            throw e; // Re-lança para ser pego pelo Servlet chamador
         } finally {
             if (rsKeys != null) try { rsKeys.close(); } catch(SQLException e) {}
             if (psPlano != null) try { psPlano.close(); } catch(SQLException e) {}
@@ -161,12 +154,13 @@ public class SalvarPlanoNoBanco {
     }
 
     private void salvarSubtreinoComExercicios(Connection conn, int treinoId, String nomeSubtreino, JSONObject subtreinoJson) throws SQLException {
-        if (subtreinoJson == null) return;
+        if (subtreinoJson == null || subtreinoJson.optString("foco").isEmpty()) return;
 
         PreparedStatement psSubtreino = null, psExercicio = null;
         ResultSet rsKeys = null;
 
         try {
+            // Inserir Subtreino
             String sqlSubtreino = "INSERT INTO subtreino (treino_id, nome, foco) VALUES (?, ?, ?)";
             psSubtreino = conn.prepareStatement(sqlSubtreino, Statement.RETURN_GENERATED_KEYS);
             psSubtreino.setInt(1, treinoId);
@@ -174,12 +168,11 @@ public class SalvarPlanoNoBanco {
             psSubtreino.setString(3, subtreinoJson.optString("foco"));
             psSubtreino.executeUpdate();
             rsKeys = psSubtreino.getGeneratedKeys();
-            if (!rsKeys.next()) {
-                throw new SQLException("Falha ao obter o ID do subtreino.");
-            }
+            if (!rsKeys.next()) throw new SQLException("Falha ao obter o ID do subtreino.");
             int subtreinoId = rsKeys.getInt(1);
             rsKeys.close();
 
+            // Inserir Exercícios em Batch
             JSONArray exercicios = subtreinoJson.optJSONArray("exercicios");
             if (exercicios != null) {
                 String sqlExercicio = "INSERT INTO exercicio (subtreino_id, nome, series, repeticoes) VALUES (?, ?, ?, ?)";

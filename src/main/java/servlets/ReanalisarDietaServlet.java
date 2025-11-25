@@ -1,150 +1,185 @@
 package servlets;
 
-import gemini.Gemini;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.*;
+import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Properties;
+
+import org.json.JSONArray;
 import org.json.JSONObject;
-import org.json.JSONException;
-import java.io.*;
-import java.util.stream.Collectors;
 
-@WebServlet("/ReanalisarDietaServlet")
-public class ReanalisarDietaServlet extends HttpServlet {
-
-    private final SalvarPlanoNoBanco salvarPlanoNoBanco = new SalvarPlanoNoBanco();
-    private final PlanoDAO planoDAO = new PlanoDAO(); 
-
-    @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        JSONObject responseJson = new JSONObject();
-        HttpSession session = request.getSession(false);
-
-        // 1. Verificação de autenticação e ID
-        Object idUsuarioObj = session != null ? session.getAttribute("idUsuario") : null;
-        Integer idUsuario = null;
-        try {
-            if (idUsuarioObj instanceof String) {
-                idUsuario = Integer.valueOf((String) idUsuarioObj);
-            } else if (idUsuarioObj instanceof Integer) {
-                idUsuario = (Integer) idUsuarioObj;
-            }
-        } catch (NumberFormatException ignored) {}
-
-        if (idUsuario == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            responseJson.put("erro", "Usuário não autenticado ou ID inválido.");
-            response.getWriter().write(responseJson.toString());
-            return;
-        }
-
-        // Recuperar o comentário do usuário
-        String comentario = new BufferedReader(request.getReader()).lines().collect(Collectors.joining("\n"));
-        JSONObject inputJson = new JSONObject(comentario);
-        String feedbackComentario = inputJson.optString("comentario", "");
+// Esta classe contém a lógica para salvar o plano gerado pela IA no banco de dados.
+public class ReanalisarDietaServlet {
+    
+    // Método auxiliar para limpar strings numéricas (ex: "2600kcal" -> 2600)
+    private int parseJsonInt(JSONObject json, String key) {
+        Object value = json.opt(key);
+        if (value == null) return 0;
         
+        String s = value.toString().toLowerCase().trim();
+        s = s.replaceAll("[^0-9.]", ""); 
+        
+        try {
+            return Integer.parseInt(s); 
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Salva o plano completo (dieta e treino) no banco de dados, usando uma conexão externa.
+     * @param conn A conexão JDBC (com autoCommit(false) definido).
+     * @param idUsuario O ID do usuário logado.
+     * @param planoDietaJson O objeto JSON do plano de dieta.
+     * @param planoTreinoJson O objeto JSON do plano de treino.
+     * @throws Exception Se ocorrer qualquer erro durante a persistência.
+     */
+    // ASSINATURA CORRIGIDA para receber idUsuario
+    public void salvarPlanoNoBanco(Connection conn, int idUsuario, JSONObject planoDietaJson, JSONObject planoTreinoJson) throws Exception { 
+        
+        PreparedStatement psPlano = null, psDieta = null, psMacro = null, psRefeicoes = null;
+        PreparedStatement psTreino = null; 
+        ResultSet rsKeys = null;
 
         try {
-            // 2. Obter o último plano e resumo diário
-            JSONObject ultimoPlano = planoDAO.getUltimoPlanoCompleto(idUsuario);
-            String resumoDiario = planoDAO.getResumoDadosDiarios(idUsuario, 7); // Últimos 7 dias
-
-            if (ultimoPlano == null) {
-                 responseJson.put("sucesso", false);
-                 responseJson.put("erro", "Nenhum plano anterior encontrado para atualização. Crie um novo plano primeiro.");
-                 response.getWriter().write(responseJson.toString());
-                 return;
+            // 1. Inserir plano (ID)
+            String sqlPlano = "INSERT INTO plano (id_usuario) VALUES (?)";
+            psPlano = conn.prepareStatement(sqlPlano, Statement.RETURN_GENERATED_KEYS);
+            psPlano.setInt(1, idUsuario); // IDUSUARIO AGORA É USADO CORRETAMENTE
+            psPlano.executeUpdate();
+            rsKeys = psPlano.getGeneratedKeys();
+            if (!rsKeys.next()) {
+                throw new Exception("Falha ao obter o ID do plano.");
             }
-
-            // 3. Montar o prompt de atualização
-            String prompt = montarPromptDeAtualizacao(ultimoPlano, resumoDiario, feedbackComentario);
+            int planoId = rsKeys.getInt(1);
+            rsKeys.close();
             
-            // 4. Chamar a IA
-            String respostaGeminiBruta = Gemini.getCompletion(prompt);
-            String respostaGeminiLimpa = limparRespostaGemini(respostaGeminiBruta);
+            // 2. Inserir dieta
+            String sqlDieta = "INSERT INTO dieta (plano_id, objetivo, calorias_totais, observacoes, meta_agua) VALUES (?, ?, ?, ?, ?)";
+            psDieta = conn.prepareStatement(sqlDieta, Statement.RETURN_GENERATED_KEYS);
+            psDieta.setInt(1, planoId);
+            psDieta.setString(2, planoDietaJson.optString("objetivo"));
             
-            JSONObject novoPlanoCompletoJson = new JSONObject(respostaGeminiLimpa);
-            JSONObject novoPlanoJson = novoPlanoCompletoJson.optJSONObject("plano_completo");
+            int caloriasTotais = parseJsonInt(planoDietaJson, "calorias_totais");
+            psDieta.setInt(3, caloriasTotais); 
             
-            if (novoPlanoJson != null) {
-                JSONObject planoDietaJson = novoPlanoJson.optJSONObject("plano_dieta");
-                JSONObject planoTreinoJson = novoPlanoJson.optJSONObject("plano_treino");
+            psDieta.setString(4, planoDietaJson.optString("observacoes"));
 
-                if (planoDietaJson == null || planoTreinoJson == null) {
-                    throw new JSONException("Campos 'plano_dieta' ou 'plano_treino' ausentes no novo plano.");
-                }
-
-                // 5. Salvar o novo plano (novo registro no histórico)
-                salvarPlanoNoBanco.salvarPlanoNoBanco(idUsuario, planoDietaJson, planoTreinoJson);
-                
-                responseJson.put("sucesso", true);
-                responseJson.put("mensagem", "Plano atualizado e salvo no histórico com sucesso.");
+            int metaAgua = parseJsonInt(planoDietaJson, "meta_agua");
+            if (metaAgua > 0) {
+                 psDieta.setInt(5, metaAgua);
             } else {
-                throw new JSONException("Seção 'plano_completo' ausente ou inválida na resposta da IA. Resposta bruta: " + respostaGeminiLimpa.substring(0, Math.min(respostaGeminiLimpa.length(), 200)));
+                 psDieta.setNull(5, java.sql.Types.INTEGER);
             }
-        } catch (Exception e) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            responseJson.put("sucesso", false);
-            responseJson.put("erro", "Erro durante a reanálise do plano: " + e.getMessage());
-            e.printStackTrace();
+
+            psDieta.executeUpdate();
+            rsKeys = psDieta.getGeneratedKeys();
+            if (!rsKeys.next()) {
+                throw new Exception("Falha ao obter o ID da dieta.");
+            }
+            int dietaId = rsKeys.getInt(1);
+            rsKeys.close();
+
+            // 3. Inserir macronutrientes 
+            JSONObject macro = planoDietaJson.optJSONObject("meta_macronutrientes");
+            if (macro != null) {
+                String sqlMacro = "INSERT INTO macronutrientes (dieta_id, proteinas, carboidratos, gorduras) VALUES (?, ?, ?, ?)";
+                psMacro = conn.prepareStatement(sqlMacro);
+                psMacro.setInt(1, dietaId);
+                
+                psMacro.setInt(2, parseJsonInt(macro, "proteinas_g")); 
+                psMacro.setInt(3, parseJsonInt(macro, "carboidratos_g"));
+                psMacro.setInt(4, parseJsonInt(macro, "gorduras_g"));
+                
+                psMacro.executeUpdate();
+            }
+
+            // 4. Inserir refeicoes 
+            JSONObject refeicoes = planoDietaJson.optJSONObject("refeicoes");
+            if (refeicoes != null) {
+                String sqlRefeicoes = "INSERT INTO refeicoes (dieta_id, cafe_da_manha, almoco, lanche_tarde, jantar) VALUES (?, ?, ?, ?, ?)";
+                psRefeicoes = conn.prepareStatement(sqlRefeicoes);
+                psRefeicoes.setInt(1, dietaId);
+                psRefeicoes.setString(2, refeicoes.optString("cafe_da_manha"));
+                psRefeicoes.setString(3, refeicoes.optString("almoco"));
+                psRefeicoes.setString(4, refeicoes.optString("lanche_tarde"));
+                psRefeicoes.setString(5, refeicoes.optString("jantar"));
+                psRefeicoes.executeUpdate();
+            }
+
+            // 5. Inserir treino
+            String sqlTreino = "INSERT INTO treino (plano_id, divisao, justificativa_divisao, observacoes) VALUES (?, ?, ?, ?)";
+            psTreino = conn.prepareStatement(sqlTreino, Statement.RETURN_GENERATED_KEYS);
+            psTreino.setInt(1, planoId);
+            psTreino.setString(2, planoTreinoJson.optString("divisao"));
+            psTreino.setString(3, planoTreinoJson.optString("justificativa_divisao"));
+            psTreino.setString(4, planoTreinoJson.optString("observacoes"));
+            psTreino.executeUpdate();
+            rsKeys = psTreino.getGeneratedKeys();
+            if (!rsKeys.next()) {
+                throw new Exception("Falha ao obter o ID do treino.");
+            }
+            int treinoId = rsKeys.getInt(1);
+            rsKeys.close();
+
+            // 6. Salvar subtreinos e exercícios (A, B, C, etc.)
+            salvarSubtreinoComExercicios(conn, treinoId, "A", planoTreinoJson.optJSONObject("treino_a"));
+            salvarSubtreinoComExercicios(conn, treinoId, "B", planoTreinoJson.optJSONObject("treino_b"));
+            salvarSubtreinoComExercicios(conn, treinoId, "C", planoTreinoJson.optJSONObject("treino_c"));
+
+        } finally {
+            if (rsKeys != null) try { rsKeys.close(); } catch(SQLException e) {}
+            if (psPlano != null) try { psPlano.close(); } catch(SQLException e) {}
+            if (psDieta != null) try { psDieta.close(); } catch(SQLException e) {}
+            if (psMacro != null) try { psMacro.close(); } catch(SQLException e) {}
+            if (psRefeicoes != null) try { psRefeicoes.close(); } catch(SQLException e) {}
+            if (psTreino != null) try { psTreino.close(); } catch(SQLException e) {}
         }
-        response.getWriter().write(responseJson.toString());
     }
 
-    private String montarPromptDeAtualizacao(JSONObject ultimoPlano, String resumoDiario, String feedbackComentario) {
-        String planoAnterior = ultimoPlano.toString(2); // Formatação para IA entender melhor
-        
-        return "Com base no último plano do usuário e nos dados diários fornecidos, gere um NOVO plano completo (dieta e treino). " +
-               "Analise o feedback dos dados diários e o comentário do usuário para fazer ajustes e melhorias.\n\n" +
-               "--- Último Plano (para referência de contexto) ---\n" + planoAnterior + "\n\n" +
-               "--- Resumo dos Dados Diários ---\n" + resumoDiario + "\n\n" +
-               "--- Comentário do Usuário ---\n" + (feedbackComentario.isEmpty() ? "Nenhum comentário adicional." : feedbackComentario) + "\n\n" +
-               "Instrução: Gere o NOVO plano usando a seguinte estrutura JSON EXATA. Não use `meta_macronutrientes` dentro de `plano_dieta`\n\n" +
-               getJsonSchema();
-    }
+    private void salvarSubtreinoComExercicios(Connection conn, int treinoId, String nomeSubtreino, JSONObject subtreinoJson) throws SQLException {
+        if (subtreinoJson == null || subtreinoJson.optString("foco").isEmpty()) return;
 
-    private String getJsonSchema() {
-        return "{\n" +
-               "  \"plano_completo\": {\n" +
-               "    \"plano_dieta\": {\n" +
-               "      \"objetivo\": \"[string: objetivo principal da dieta]\",\n" +
-               "      \"calorias_totais\": \"[int: estimativa de calorias totais em kcal]\",\n" +
-               "      \"meta_agua\": \"[int: litros de água por dia]\",\n" +
-               "      \"meta_macronutrientes\": {\n" +
-               "        \"proteinas_g\": \"[int: Gramas de Proteínas]\",\n" +
-               "        \"carboidratos_g\": \"[int: Gramas de Carboidratos]\",\n" +
-               "        \"gorduras_g\": \"[int: Gramas de Gorduras]\"\n" +
-               "      },\n" +
-               "      \"refeicoes\": {\n" +
-               "        \"cafe_da_manha\": \"[string: sugestão para o café da manhã]\",\n" +
-               "        \"almoco\": \"[string: sugestão para o almoço]\",\n" +
-               "        \"lanche_tarde\": \"[string: sugestão para o lanche da tarde]\",\n" +
-               "        \"jantar\": \"[string: sugestão para o jantar]\"\n" +
-               "      },\n" +
-               "      \"observacoes\": \"[string: observações adicionais sobre a dieta]\"\n" +
-               "    },\n" +
-               "    \"plano_treino\": {\n" +
-               "      \"divisao\": \"[string: 'ABC', 'ABAB' ou outra divisão]\",\n" +
-               "      \"justificativa_divisao\": \"[string: justificativa para a escolha da divisão]\",\n" +
-               "      \"treino_a\": { /* ... estrutura de foco e exercícios ... */ },\n" +
-               "      \"treino_b\": { /* ... estrutura de foco e exercícios ... */ },\n" +
-               "      \"treino_c\": { /* ... estrutura de foco e exercícios ... */ },\n" +
-               "      \"observacoes\": \"[string: observações adicionais sobre o treino, como descanso, aquecimento, etc.]\"\n" +
-               "    }\n" +
-               "  }\n" +
-               "}";
-    }
+        PreparedStatement psSubtreino = null, psExercicio = null;
+        ResultSet rsKeys = null;
 
-    private String limparRespostaGemini(String resposta) {
-        if (resposta == null) return "";
-        resposta = resposta.trim();
-        resposta = resposta.replace("```json", "").trim();
-        resposta = resposta.replace("```", "").trim();
-        resposta = resposta.replace("|#]", "").trim();
-        // Remove quebras de linha e tabulações para garantir que o JSONObject seja lido
-        resposta = resposta.replace("\n", "").replace("\t", "");
-        return resposta;
+        try {
+            // Inserir Subtreino
+            String sqlSubtreino = "INSERT INTO subtreino (treino_id, nome, foco) VALUES (?, ?, ?)";
+            psSubtreino = conn.prepareStatement(sqlSubtreino, Statement.RETURN_GENERATED_KEYS);
+            psSubtreino.setInt(1, treinoId);
+            psSubtreino.setString(2, nomeSubtreino);
+            psSubtreino.setString(3, subtreinoJson.optString("foco"));
+            psSubtreino.executeUpdate();
+            rsKeys = psSubtreino.getGeneratedKeys();
+            if (!rsKeys.next()) {
+                throw new SQLException("Falha ao obter o ID do subtreino.");
+            }
+            int subtreinoId = rsKeys.getInt(1);
+            rsKeys.close();
+
+            // Inserir Exercícios em Batch
+            JSONArray exercicios = subtreinoJson.optJSONArray("exercicios");
+            if (exercicios != null) {
+                String sqlExercicio = "INSERT INTO exercicio (subtreino_id, nome, series, repeticoes) VALUES (?, ?, ?, ?)";
+                psExercicio = conn.prepareStatement(sqlExercicio);
+                for (int i = 0; i < exercicios.length(); i++) {
+                    JSONObject exercicio = exercicios.getJSONObject(i);
+                    psExercicio.setInt(1, subtreinoId);
+                    psExercicio.setString(2, exercicio.optString("nome"));
+                    psExercicio.setString(3, exercicio.optString("series"));
+                    psExercicio.setString(4, exercicio.optString("repeticoes"));
+                    psExercicio.addBatch();
+                }
+                psExercicio.executeBatch();
+            }
+        } finally {
+            if (rsKeys != null) try { rsKeys.close(); } catch(SQLException e) {}
+            if (psSubtreino != null) try { psSubtreino.close(); } catch(SQLException e) {}
+            if (psExercicio != null) try { psExercicio.close(); } catch(SQLException e) {}
+        }
     }
 }

@@ -1,150 +1,189 @@
 package servlets;
 
-import gemini.Gemini;
-import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.*;
-import org.json.JSONObject;
-import org.json.JSONException;
 import java.io.*;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import jakarta.servlet.annotation.WebServlet;
+import java.sql.*;
 import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
-// Atenção: Certifique-se de que estas classes existem no seu projeto:
-// import seu.pacote.SalvarPlanoNoBanco; 
-// import seu.pacote.PlanoDAO;
-// import seu.pacote.Gemini; 
-
-@WebServlet("/AtualizarPlanoServlet")
+@WebServlet("/BuscarUltimoPlano")
 public class AtualizarPlanoServlet extends HttpServlet {
-
-    // Seus atributos
-    // private final SalvarPlanoNoBanco salvarPlanoNoBanco = new SalvarPlanoNoBanco();
-    // private final PlanoDAO planoDAO = new PlanoDAO();
+    
+    // Função utilitária para pegar Integer ou null
+    private Integer getInteger(ResultSet rs, String columnLabel) throws SQLException {
+        int value = rs.getInt(columnLabel);
+        return rs.wasNull() ? null : value;
+    }
+    
+    // Função utilitária para pegar String ou String vazia
+    private String getString(ResultSet rs, String columnLabel) throws SQLException {
+        String value = rs.getString(columnLabel);
+        // Garante que null se torne "" (string vazia) para evitar problemas no JSON
+        return value != null ? value : "";
+    }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
-        JSONObject responseJson = new JSONObject();
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         HttpSession session = req.getSession(false);
-
-        Integer idUsuario = null;
-
-        Object idUsuarioObj = session != null ? session.getAttribute("idUsuario") : null;
-        try {
-            if (idUsuarioObj != null) {
-                idUsuario = Integer.parseInt(idUsuarioObj.toString());
-            }
-        } catch (NumberFormatException ignored) {}
-
-        if (idUsuario == null) {
+        if (session == null || session.getAttribute("usuarioEmail") == null) {
             resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            responseJson.put("erro", "Usuário não autenticado ou ID inválido.");
-            resp.getWriter().write(responseJson.toString());
             return;
         }
-        
+
+        String email = (String) session.getAttribute("usuarioEmail");
+        JSONObject result = new JSONObject();
+
         try {
-            String requestBody = req.getReader().lines().collect(Collectors.joining("\n"));
-            JSONObject jsonInput = new JSONObject(requestBody);
-            
-            String pesoAtual = jsonInput.optString("pesoAtual");
-            String duracaoTreinoAtual = jsonInput.optString("duracaoTreinoAtual");
-            String comentarioUsuario = jsonInput.optString("comentario", "");
-            
-            if (pesoAtual.isEmpty() || duracaoTreinoAtual.isEmpty()) {
-                responseJson.put("sucesso", false);
-                responseJson.put("erro", "Peso atual e duração do treino são obrigatórios.");
-                resp.getWriter().write(responseJson.toString());
-                return;
-            }
-            
-            // --- A PARTIR DAQUI ASSUME-SE QUE AS DEPENDÊNCIAS ESTÃO INSTANCIADAS ---
-            
-            // 1. ATUALIZA PESO NO BANCO DE DADOS (Tabela 'usuario') - CRUCIAL
-            // atualizarPesoUsuario(idUsuario, pesoAtual);
-            
-            // 2. Buscar Último Plano e Resumo Diário do BD (com PlanoDAO)
-            // JSONObject ultimoPlanoJsonWrapper = planoDAO.getUltimoPlanoCompleto(idUsuario);
-            // String resumoDiario = planoDAO.getResumoDadosDiarios(idUsuario, 7);
-            
-            // Simulação de retorno de dados (DESCOMENTAR E USAR AS LINHAS ACIMA NA VERSÃO REAL)
-            JSONObject ultimoPlanoJsonWrapper = new JSONObject("{\"plano_completo\": {\"plano_dieta\": {\"objetivo\": \"Ganho de massa\", \"calorias_totais\": 2500, \"observacoes\": \"(só dá para iniciar sob supervisão, dado a sua condição física 90 kg e 175 cm)\"}}}");
-            String resumoDiario = "Sucesso: Treinos completos em 5 de 7 dias.";
-            
-            if (ultimoPlanoJsonWrapper == null) {
-                responseJson.put("sucesso", false);
-                responseJson.put("erro", "Nenhum plano anterior encontrado para atualização.");
-                resp.getWriter().write(responseJson.toString());
-                return;
-            }
+            // Carrega propriedades do banco
+            Properties props = new Properties();
+            InputStream input = getClass().getClassLoader().getResourceAsStream("db.properties");
+            if (input == null) throw new Exception("Arquivo db.properties não encontrado.");
+            props.load(input);
 
-            // 3. Montar Prompt de Atualização
-            String prompt = montarPromptDeAtualizacao(ultimoPlanoJsonWrapper, resumoDiario, comentarioUsuario, pesoAtual, duracaoTreinoAtual);
-            
-            // 4. Chamar a IA (substituir por Gemini.getCompletion(prompt) na versão real)
-            // String respostaGeminiBruta = Gemini.getCompletion(prompt);
-            String respostaGeminiBruta = "```json\n" + getExemploRespostaJSON(pesoAtual) + "\n```"; // Usando simulação
-            String respostaGeminiLimpa = limparRespostaGemini(respostaGeminiBruta);
-            
-            JSONObject novoPlanoCompletoJson = new JSONObject(respostaGeminiLimpa);
-            JSONObject novoPlanoJson = novoPlanoCompletoJson.optJSONObject("plano_completo");
-            
-            if (novoPlanoJson != null) {
-                // ... (Verificações omitidas para brevidade na simulação)
+            Class.forName(props.getProperty("db.driver"));
+            try (Connection conn = DriverManager.getConnection(
+                    props.getProperty("db.url"), props.getProperty("db.username"), props.getProperty("db.password"))) {
 
-                // 5. Salvar o novo plano (novo registro no histórico)
-                // salvarPlanoNoBanco.salvarPlanoNoBanco(idUsuario, planoDietaJson, planoTreinoJson);
+                // Busca ID do usuário
+                int idUsuario = -1;
+                try (PreparedStatement ps = conn.prepareStatement("SELECT id FROM usuario WHERE email = ?")) {
+                    ps.setString(1, email);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) idUsuario = rs.getInt("id");
+                    }
+                }
+                if (idUsuario == -1) throw new Exception("Usuário não encontrado!");
+
+                // Busca o último plano (maior id)
+                int planoId = -1;
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id FROM plano WHERE id_usuario = ? ORDER BY id DESC LIMIT 1")) {
+                    ps.setInt(1, idUsuario);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) planoId = rs.getInt("id");
+                    }
+                }
+                if (planoId == -1) {
+                    resp.setContentType("application/json");
+                    resp.getWriter().write("{\"error\":\"Nenhum preenchimento de plano encontrado.\"}");
+                    return;
+                }
+
+                // --- 1. Busca dieta e detalhes ---
+                JSONObject dietaJson = new JSONObject();
+                int dietaId = -1;
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id, objetivo, calorias_totais, observacoes, meta_agua FROM dieta WHERE plano_id = ?")) {
+                    ps.setInt(1, planoId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            dietaId = rs.getInt("id");
+                            
+                            dietaJson.put("objetivo", getString(rs, "objetivo"));
+                            dietaJson.put("calorias_totais", getInteger(rs, "calorias_totais"));
+                            dietaJson.put("meta_agua", getInteger(rs, "meta_agua"));
+                            dietaJson.put("observacoes", getString(rs, "observacoes"));
+                        }
+                    }
+                }
                 
-                responseJson.put("sucesso", true);
-                responseJson.put("mensagem", "Plano atualizado e salvo no histórico com sucesso!");
-            } else {
-                throw new JSONException("Resposta da IA inválida. Não foi possível extrair o plano completo. JSON recebido: " + respostaGeminiLimpa);
+                // --- Macronutrientes ---
+                if (dietaId != -1) {
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "SELECT proteinas, carboidratos, gorduras FROM macronutrientes WHERE dieta_id = ?")) {
+                        ps.setInt(1, dietaId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (rs.next()) {
+                                JSONObject macro = new JSONObject();
+                                macro.put("proteinas", getInteger(rs, "proteinas"));
+                                macro.put("carboidratos", getInteger(rs, "carboidratos"));
+                                macro.put("gorduras", getInteger(rs, "gorduras"));
+                                dietaJson.put("macronutrientes", macro);
+                            }
+                        }
+                    }
+                    // Refeições
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "SELECT cafe_da_manha, almoco, lanche_tarde, jantar FROM refeicoes WHERE dieta_id = ?")) {
+                        ps.setInt(1, dietaId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (rs.next()) {
+                                JSONObject refeicoes = new JSONObject();
+                                refeicoes.put("cafe_da_manha", getString(rs, "cafe_da_manha"));
+                                refeicoes.put("almoco", getString(rs, "almoco"));
+                                refeicoes.put("lanche_tarde", getString(rs, "lanche_tarde"));
+                                refeicoes.put("jantar", getString(rs, "jantar"));
+                                dietaJson.put("refeicoes", refeicoes);
+                            }
+                        }
+                    }
+                }
+                result.put("dieta", dietaJson);
+
+                // --- 2. Busca treino e detalhes ---
+                JSONObject treinoJson = new JSONObject();
+                int treinoId = -1;
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id, divisao, justificativa_divisao, observacoes FROM treino WHERE plano_id = ?")) {
+                    ps.setInt(1, planoId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            treinoId = rs.getInt("id");
+                            treinoJson.put("divisao", getString(rs, "divisao"));
+                            treinoJson.put("justificativa_divisao", getString(rs, "justificativa_divisao"));
+                            treinoJson.put("observacoes", getString(rs, "observacoes"));
+                        }
+                    }
+                }
+
+                // Subtreinos e exercícios
+                JSONArray subtreinosArray = new JSONArray();
+                if (treinoId != -1) {
+                    try (PreparedStatement ps = conn.prepareStatement(
+                            "SELECT id, nome, foco FROM subtreino WHERE treino_id = ?")) {
+                        ps.setInt(1, treinoId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            while (rs.next()) {
+                                JSONObject subtreino = new JSONObject();
+                                int subtreinoId = rs.getInt("id");
+                                subtreino.put("nome", getString(rs, "nome"));
+                                subtreino.put("foco", getString(rs, "foco"));
+
+                                // Exercícios do subtreino
+                                JSONArray exerciciosArray = new JSONArray();
+                                try (PreparedStatement psEx = conn.prepareStatement(
+                                        "SELECT nome, series, repeticoes FROM exercicio WHERE subtreino_id = ?")) {
+                                    psEx.setInt(1, subtreinoId);
+                                    try (ResultSet rsEx = psEx.executeQuery()) {
+                                        while (rsEx.next()) {
+                                            JSONObject ex = new JSONObject();
+                                            ex.put("nome", getString(rsEx, "nome"));
+                                            ex.put("series", getString(rsEx, "series"));
+                                            ex.put("repeticoes", getString(rsEx, "repeticoes"));
+                                            exerciciosArray.put(ex);
+                                        }
+                                    }
+                                }
+                                subtreino.put("exercicios", exerciciosArray);
+                                subtreinosArray.put(subtreino);
+                            }
+                        }
+                    }
+                }
+                treinoJson.put("subtreinos", subtreinosArray);
+                result.put("treino", treinoJson);
+
+                // Retorna JSON
+                resp.setContentType("application/json");
+                resp.getWriter().write(result.toString());
             }
         } catch (Exception e) {
-            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            responseJson.put("sucesso", false);
-            responseJson.put("erro", "Erro interno ao reanalisar o plano: " + e.getMessage());
             e.printStackTrace();
+            resp.setStatus(500);
+            resp.getWriter().write("{\"error\":\"Erro ao buscar dados do plano.\"}");
         }
-        resp.getWriter().write(responseJson.toString());
-    }
-    
-    // FUNÇÃO DE LIMPEZA CORRIGIDA: Apenas remove marcadores de código
-    private String limparRespostaGemini(String resposta) {
-        if (resposta == null) return "";
-        resposta = resposta.trim();
-        
-        if (resposta.startsWith("```json")) {
-            resposta = resposta.substring(7).trim();
-        }
-        if (resposta.endsWith("```")) {
-            resposta = resposta.substring(0, resposta.length() - 3).trim();
-        }
-        return resposta;
-    }
-
-    // --- Métodos Auxiliares (mantidos do seu original) ---
-    private String montarPromptDeAtualizacao(JSONObject ultimoPlanoWrapper, String resumoDiario, String feedbackComentario, String pesoAtual, String duracaoTreinoAtual) {
-         String planoAnteriorString = ultimoPlanoWrapper.optJSONObject("plano_completo").toString(2);
-         String planoAnteriorLimpo = limparPesoAntigoNoPlano(planoAnteriorString, pesoAtual);
-         
-         // Lógica de prompt aqui
-         return "Gere um NOVO plano completo...";
-    }
-    
-    private String limparPesoAntigoNoPlano(String planoAnterior, String novoPeso) {
-        // ... (Seu código original de limpeza)
-        return planoAnterior;
-    }
-    
-    // Método simulado para testes
-    private String getExemploRespostaJSON(String pesoAtual) {
-         return "{\"plano_completo\": {\"plano_dieta\": {\"objetivo\": \"Manutenção do peso (" + pesoAtual + " kg)\", \"calorias_totais\": 2300, \"meta_agua\": 3, \"meta_macronutrientes\": {\"proteinas_g\": 180, \"carboidratos_g\": 250, \"gorduras_g\": 60}, \"refeicoes\": {\"cafe_da_manha\": \"Ovos e aveia\", \"almoco\": \"Frango e arroz integral\", \"lanche_tarde\": \"Whey e fruta\", \"jantar\": \"Peixe e vegetais\"}, \"observacoes\": \"Adaptações feitas para o novo peso.\"}, \"plano_treino\": {\"divisao\": \"ABC\", \"justificativa_divisao\": \"Foco em progressão\", \"treino_a\": { \"foco\":\"Peito/Triceps\", \"exercicios\": [{\"nome\":\"Supino\", \"series\":\"4\", \"repeticoes\":\"10\"}]}, \"observacoes\": \"Descanso 60s.\", \"subtreinos\": []}}}";
     }
 }
