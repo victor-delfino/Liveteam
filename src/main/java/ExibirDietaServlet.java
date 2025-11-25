@@ -1,3 +1,5 @@
+package servlets;
+
 import gemini.Gemini;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -10,12 +12,10 @@ import org.json.JSONObject;
 import org.json.JSONException;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.sql.SQLException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.util.Properties;
-import servlets.SalvarPlanoNoBanco;
 
 @WebServlet("/ExibirDietaServlet")
 public class ExibirDietaServlet extends HttpServlet {
@@ -33,17 +33,16 @@ public class ExibirDietaServlet extends HttpServlet {
     }
 
     private void exibirPlanoCompleto(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        int idUsuario = -1; // valor padrão inválido
+        int idUsuario = -1; 
         HttpSession session = request.getSession(false);
 
+        // [Bloco de Verificação de Login]
         if (session != null) {
-            String idUsuarioStr = (String) session.getAttribute("idUsuario");
-            if (idUsuarioStr != null) {
+            Object idUsuarioObj = session.getAttribute("idUsuario");
+            if (idUsuarioObj != null) {
                 try {
-                    idUsuario = Integer.parseInt(idUsuarioStr);
-                    System.out.println("ID do usuário logado: " + idUsuario);
+                    idUsuario = Integer.parseInt(idUsuarioObj.toString());
                 } catch (NumberFormatException e) {
-                    e.printStackTrace();
                     response.sendRedirect("login.jsp?error=idInvalido");
                     return;
                 }
@@ -56,7 +55,8 @@ public class ExibirDietaServlet extends HttpServlet {
             return;
         }
 
-        // Recupera os dados enviados pelo formulário
+
+        // [Bloco de Recuperação de Dados do Formulário e Atualização do Usuário]
         String idade = request.getParameter("idade");
         String sexo = request.getParameter("sexo");
         String alturaCm = request.getParameter("altura_cm");
@@ -74,12 +74,10 @@ public class ExibirDietaServlet extends HttpServlet {
         String usaSuplementos = request.getParameter("usa_suplementos");
         String suplementosUsados = request.getParameter("suplementos_usados");
         String tempoPorTreino = request.getParameter("tempo_por_treino_minutos");
-        String cafeDaManha = request.getParameter("cafe_da_manha");
-        String almoco = request.getParameter("almoco");
-        String jantar = request.getParameter("jantar");
+        String cardapioDia = request.getParameter("cardapio_dia");
 
-        // ---------- ATUALIZA IDADE, ALTURA E PESO NO BANCO SEMPRE QUE O FORMULÁRIO FOR ENVIADO ----------
-        // (Apenas estes três campos, sem afetar outros dados do usuário)
+
+        // ATUALIZA IDADE, ALTURA E PESO NO BANCO
         if (idade != null && alturaCm != null && pesoKg != null) {
             Connection conn = null;
             PreparedStatement pstmt = null;
@@ -101,7 +99,7 @@ public class ExibirDietaServlet extends HttpServlet {
                 pstmt.setInt(4, idUsuario);
                 pstmt.executeUpdate();
             } catch (Exception e) {
-                e.printStackTrace(); // log ou trate conforme desejar
+                System.err.println("Erro ao atualizar dados do usuário no banco: " + e.getMessage());
             } finally {
                 try { if (pstmt != null) pstmt.close(); } catch (Exception ignored) {}
                 try { if (conn != null) conn.close(); } catch (Exception ignored) {}
@@ -109,7 +107,7 @@ public class ExibirDietaServlet extends HttpServlet {
         }
         // ----------------------------------------------------------------------------------------------
 
-        // Monta a mensagem a ser enviada para o Gemini com especificação detalhada do JSON
+        // Monta a mensagem a ser enviada para o Gemini com a estrutura JSON limpa
         String mensagem = "Por favor, crie um plano completo de dieta e treino para academia com base nas seguintes informações:\n\n" +
                 "Idade: " + idade + "\n" +
                 "Sexo: " + sexo + "\n" +
@@ -128,21 +126,18 @@ public class ExibirDietaServlet extends HttpServlet {
                 "Usa Suplementos: " + usaSuplementos + "\n" +
                 "Suplementos Usados: " + suplementosUsados + "\n" +
                 "Tempo por Treino (minutos): " + tempoPorTreino + "\n" +
-                "Café da Manhã (sugestão): " + cafeDaManha + "\n" +
-                "Almoço (sugestão): " + almoco + "\n" +
-                "Jantar (sugestão): " + jantar + "\n\n" +
+                "Cardápio do Dia (sugestão): " + cardapioDia + "\n\n" +
                 "Retorne a resposta em um objeto JSON com a seguinte estrutura EXATA:\n\n" +
                 "{\n" +
                 "  \"plano_completo\": {\n" +
                 "    \"plano_dieta\": {\n" +
                 "      \"objetivo\": \"[string: objetivo principal da dieta]\",\n" +
-                "      \"calorias_totais\": \"[int: estimativa de calorias totais]\",\n" +
-                "       \"meta_agua\": \"[int: litros ]\"\n" +
+                "      \"calorias_totais\": \"[int: estimativa de calorias totais em kcal]\",\n" +
+                "      \"meta_agua\": \"[int: litros de água por dia]\",\n" + 
                 "      \"meta_macronutrientes\": {\n" +
-                "        \"proteinas\": \"[int: Gramas d]\",\n" +
-                "        \"carboidratos\": \"[int: Gramas ]\",\n" +
-                "        \"gorduras\": \"[int: Gramas ]\"\n" +
-                "        \"meta_agua\": \"[int: litros ]\"\n" +
+                "        \"proteinas_g\": \"[int: Gramas d]\",\n" + 
+                "        \"carboidratos_g\": \"[int: Gramas ]\",\n" + 
+                "        \"gorduras_g\": \"[int: Gramas ]\"\n" + 
                 "      },\n" +
                 "      \"refeicoes\": {\n" +
                 "        \"cafe_da_manha\": \"[string: sugestão para o café da manhã]\",\n" +
@@ -155,70 +150,25 @@ public class ExibirDietaServlet extends HttpServlet {
                 "    \"plano_treino\": {\n" +
                 "      \"divisao\": \"[string: 'ABC', 'ABAB' ou outra divisão]\",\n" +
                 "      \"justificativa_divisao\": \"[string: justificativa para a escolha da divisão]\",\n" +
-                "      \"treino_a\": {\n" +
-                "        \"foco\": \"[string: grupo muscular principal do treino A]\",\n" +
-                "        \"exercicios\": [\n" +
-                "          {\n" +
-                "            \"nome\": \"[string: nome do exercício]\",\n" +
-                "            \"series\": \"[string: número de séries (ex: '3') ]\",\n" +
-                "            \"repeticoes\": \"[string: número de repetições (ex: '8-12')]\"\n" +
-                "          },\n" +
-                "          {\n" +
-                "            \"nome\": \"[string: nome do exercício]\",\n" +
-                "            \"series\": \"[string: número de séries (ex: '3')]\",\n" +
-                "            \"repeticoes\": \"[string: número de repetições (ex: '10-15')]\"\n" +
-                "          }\n" +
-                "          // ... mais exercícios seguindo a mesma estrutura ...\n" +
-                "        ]\n" +
-                "      },\n" +
-                "      \"treino_b\": {\n" +
-                "        \"foco\": \"[string: grupo muscular principal do treino B]\",\n" +
-                "        \"exercicios\": [\n" +
-                "          {\n" +
-                "            \"nome\": \"[string: nome do exercício]\",\n" +
-                "            \"series\": \"[string: número de séries (ex: '3')]\",\n" +
-                "            \"repeticoes\": \"[string: número de repetições (ex: '8-12')]\"\n" +
-                "          },\n" +
-                "          {\n" +
-                "            \"nome\": \"[string: nome do exercício]\",\n" +
-                "            \"series\": \"[string: número de séries (ex: '3')]\",\n" +
-                "            \"repeticoes\": \"[string: número de repetições (ex: '10-15')]\"\n" +
-                "          }\n" +
-                "          // ... mais exercícios seguindo a mesma estrutura ...\n" +
-                "        ]\n" +
-                "      },\n" +
-                "      \"treino_c\": {\n" +
-                "        \"foco\": \"[string: grupo muscular principal do treino C]\",\n" +
-                "        \"exercicios\": [\n" +
-                "          {\n" +
-                "            \"nome\": \"[string: nome do exercício]\",\n" +
-                "            \"series\": \"[string: número de séries (ex: '3')]\",\n" +
-                "            \"repeticoes\": \"[string: número de repetições (ex: '8-12')]\"\n" +
-                "          },\n" +
-                "          {\n" +
-                "            \"nome\": \"[string: nome do exercício]\",\n" +
-                "            \"series\": \"[string: número de séries (ex: '3')]\",\n" +
-                "            \"repeticoes\": \"[string: número de repetições (ex: '10-15')]\"\n" +
-                "          }\n" +
-                "          // ... mais exercícios seguindo a mesma estrutura (apenas se divisão ABC) ...\n" +
-                "        ]\n" +
-                "      },\n" +
+                "      \"treino_a\": {\"foco\":\"[string: foco]\", \"exercicios\": [{\"nome\":\"[string: nome]\", \"series\":\"[string: 3]\", \"repeticoes\":\"[string: 8-12]\"}]},\n" +
+                "      \"treino_b\": {\"foco\":\"[string: foco]\", \"exercicios\": [{\"nome\":\"[string: nome]\", \"series\":\"[string: 3]\", \"repeticoes\":\"[string: 8-12]\"}]},\n" +
+                "      \"treino_c\": {\"foco\":\"[string: foco]\", \"exercicios\": [{\"nome\":\"[string: nome]\", \"series\":\"[string: 3]\", \"repeticoes\":\"[string: 8-12]\"}]},\n" +
                 "      \"observacoes\": \"[string: observações adicionais sobre o treino, como descanso, aquecimento, etc.]\"\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
 
         String respostaGemini = "";
-        JSONObject respostaJson = null;
         JSONObject planoCompletoJson = null;
         JSONObject planoDietaJson = null;
         JSONObject planoTreinoJson = null;
+        boolean sucessoSalvamento = false;
 
         try {
+            // 1. Chamar a IA
             respostaGemini = Gemini.getCompletion(mensagem);
-            System.out.println("Resposta Bruta do Gemini (no Servlet - Original): " + respostaGemini);
-
-            // Limpeza da resposta
+            
+            // 2. Limpeza da resposta
             respostaGemini = respostaGemini.trim();
             respostaGemini = respostaGemini.replace("```json", "").trim();
             respostaGemini = respostaGemini.replace("```", "").trim();
@@ -226,37 +176,34 @@ public class ExibirDietaServlet extends HttpServlet {
             respostaGemini = respostaGemini.replace("\n", "");
             respostaGemini = respostaGemini.replace("\t", "");
 
-            System.out.println("Resposta Bruta do Gemini (no Servlet - Limpa): " + respostaGemini);
-
-            respostaJson = new JSONObject(respostaGemini);
+            // 3. Tentar parsear o JSON
+            JSONObject respostaJson = new JSONObject(respostaGemini);
             planoCompletoJson = respostaJson.optJSONObject("plano_completo");
 
             if (planoCompletoJson != null) {
                 planoDietaJson = planoCompletoJson.optJSONObject("plano_dieta");
                 planoTreinoJson = planoCompletoJson.optJSONObject("plano_treino");
-                System.out.println("planoDietaJson (no Servlet): " + planoDietaJson);
-                System.out.println("planoTreinoJson (no Servlet): " + planoTreinoJson);
-                salvarPlanoNoBanco.salvarPlanoNoBanco(idUsuario, planoDietaJson, planoTreinoJson);
-                System.out.println("Plano salvo no banco com sucesso.");
+                
+                // 4. Salvar no banco
+                if (planoDietaJson != null && planoTreinoJson != null) {
+                    salvarPlanoNoBanco.salvarPlanoNoBanco(idUsuario, planoDietaJson, planoTreinoJson);
+                    sucessoSalvamento = true;
+                } else {
+                     System.err.println("Seções de dieta/treino não encontradas dentro de 'plano_completo'.");
+                }
             } else {
-                System.err.println("Seção 'plano_completo' não encontrada no JSON.");
+                System.err.println("Seção 'plano_completo' não encontrada no JSON da IA.");
             }
 
         } catch (JSONException e) {
-            System.err.println("Erro ao analisar JSON: " + e.getMessage());
-            if (respostaGemini != null && respostaGemini.length() > 500) {
-                System.err.println("Últimos 500 caracteres da resposta Gemini:\n" + respostaGemini.substring(respostaGemini.length() - 500));
-            } else if (respostaGemini != null) {
-                System.err.println("Resposta Gemini completa:\n" + respostaGemini);
-            }
-            respostaGemini = "Erro ao obter e analisar a resposta do Gemini: " + e.getMessage();
-            e.printStackTrace();
+            System.err.println("Erro JSON ao processar resposta do Gemini: " + e.getMessage());
+            respostaGemini = "Erro ao analisar JSON. Verifique a estrutura da IA. Erro: " + e.getMessage();
         } catch (Exception e) {
-            respostaGemini = "Erro ao obter resposta do Gemini: " + e.getMessage();
-            e.printStackTrace();
+            System.err.println("Erro durante a execução ou salvamento do plano: " + e.getMessage());
+            respostaGemini = "Erro ao obter resposta do Gemini ou salvar: " + e.getMessage();
         }
 
-        // Configura a resposta para HTML
+        // [Bloco de Geração do HTML de Resposta]
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
 
@@ -265,7 +212,6 @@ public class ExibirDietaServlet extends HttpServlet {
         out.println("<head>");
         out.println("<meta charset=\"UTF-8\">");
         out.println("<title>Plano de Dieta e Treino</title>");
-        // INÍCIO CSS ADICIONADO
         out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
         out.println("<link rel=\"stylesheet\" href=\"https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css\" />");
         out.println("<style>");
@@ -281,25 +227,35 @@ public class ExibirDietaServlet extends HttpServlet {
         out.println(".btn:hover, .btn:focus { background: linear-gradient(90deg, #7DD23B 0%, #A0D683 100%); color: #181c1f; filter: brightness(0.98); outline: none; }");
         out.println("@media (max-width: 700px) { .container { padding: 1.3rem 0.6rem; max-width: 98vw; } h1 { font-size: 1.35rem; } .btn { width: 100%; justify-content: center; } }");
         out.println("</style>");
-        // FIM CSS ADICIONADO
         out.println("</head>");
         out.println("<body>");
         out.println("<div class=\"container\">");
         out.println("<h1><i class=\"ph ph-leaf\"></i> Plano de Dieta e Treino</h1>");
+        
+        if (!sucessoSalvamento) {
+            out.println("<div style='background:#f44336; padding:15px; border-radius:8px; margin-bottom:20px; color:#fff;'>");
+            out.println("<h2><i class='ph ph-warning'></i> Erro ao Gerar/Salvar Plano</h2>");
+            out.println("<p>Houve uma falha ao salvar o plano no banco de dados. O ID do plano não foi gerado.</p>");
+            out.println("<p><strong>Detalhes do Erro:</strong> " + respostaGemini + "</p>");
+            out.println("<p>Verifique o log do servidor para o erro exato.</p>");
+            out.println("</div>");
+        }
 
-        if (planoCompletoJson != null) {
+
+        if (planoCompletoJson != null && sucessoSalvamento) {
             out.println("<h2><i class='ph ph-bowl-food'></i> Plano de Dieta</h2>");
             if (planoDietaJson != null) {
                 out.println("<p><strong>Objetivo:</strong> " + planoDietaJson.optString("objetivo") + "</p>");
-                out.println("<p><strong>Calorias Totais Estimadas:</strong> " + planoDietaJson.optString("calorias_totais") + "kcal</p>");
+                out.println("<p><strong>Calorias Totais Estimadas:</strong> " + planoDietaJson.optString("calorias_totais") + " kcal</p>");
 
                 JSONObject macroJson = planoDietaJson.optJSONObject("meta_macronutrientes");
                 if (macroJson != null) {
                     out.println("<h3>Meta de Macronutrientes:</h3>");
                     out.println("<ul>");
-                    out.println("<li><strong>Proteínas:</strong> " + macroJson.optString("proteinas") + "G</li>");
-                    out.println("<li><strong>Carboidratos:</strong> " + macroJson.optString("carboidratos") + "G</li>");
-                    out.println("<li><strong>Gorduras:</strong> " + macroJson.optString("gorduras") + "G</li>");
+                    out.println("<li><strong>Proteínas:</strong> " + macroJson.optString("proteinas_g") + "G</li>");
+                    out.println("<li><strong>Carboidratos:</strong> " + macroJson.optString("carboidratos_g") + "G</li>");
+                    out.println("<li><strong>Gorduras:</strong> " + macroJson.optString("gorduras_g") + "G</li>");
+                    out.println("<li><strong>Meta de Água:</strong> " + planoDietaJson.optString("meta_agua") + " Litros</li>");
                     out.println("</ul>");
                 }
 
@@ -342,12 +298,9 @@ public class ExibirDietaServlet extends HttpServlet {
                 out.println("<p>Erro ao exibir o plano de treino.</p>");
             }
 
-        } else {
-            out.println("<p>Erro ao exibir o plano completo.</p>");
-            out.println("<p>Resposta Bruta do Gemini (Limpa): " + respostaGemini + "</p>");
-        }
+        } 
 
-        // BOTÃO DE REDIRECIONAMENTO ADICIONADO ABAIXO
+        // BOTÃO DE REDIRECIONAMENTO
         out.println("<form action=\"home.jsp\" method=\"get\" style=\"text-align:center;\">");
         out.println("<button class=\"btn\" type=\"submit\"><i class=\"ph ph-house\"></i> Voltar para Home</button>");
         out.println("</form>");

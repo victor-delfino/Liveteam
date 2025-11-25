@@ -13,7 +13,7 @@ import java.security.cert.X509Certificate;
 
 public class Gemini {
 
-    private static final String API_KEY = ""; // Substitua pela sua chave real
+    private static final String API_KEY = "AIzaSyDT0mk-zOEp2UVX7eWUmDenkvJZVwJTxdA"; // Substitua pela sua chave real
 
     // Fake SSL HttpClient
     private static final HttpClient httpClient = createHttpClient();

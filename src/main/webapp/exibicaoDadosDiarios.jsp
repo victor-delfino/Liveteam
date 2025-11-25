@@ -15,34 +15,51 @@
     <meta charset="UTF-8">
     <title>Dados do Dia</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Bootstrap & Phosphor Icons -->
     <link rel="stylesheet" href="${pageContext.request.contextPath}/assets/css/pages/exibir-dados-page.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css" />
     <%@ include file="WEB-INF/jspf/html-head.jspf" %>
+
+    <style>
+        .multi-line-cell {
+            /* Permite que o conteúdo dentro da célula se quebre em várias linhas */
+            white-space: normal;
+            /* Garante o alinhamento superior para listas */
+            vertical-align: top;
+            /* Estilo da fonte para melhor leitura da lista */
+            font-size: 0.95rem; /* Ajuste se necessário */
+        }
+        /* Ajuste para que a observação de Alimentação e Treino também fique com a quebra */
+        .observacoes-cell {
+            white-space: pre-wrap; /* Mantém a formatação de espaço e quebras de linha (se vierem do DB) */
+            vertical-align: top;
+            font-style: italic;
+        }
+    </style>
+    
 </head>
 <body>
 
     <%@ include file="WEB-INF/jspf/header.jspf" %>
 <%
-            // Recuperar parâmetros da data
-            String dia = request.getParameter("dia");
-            String mes = request.getParameter("mes");
-            String ano = request.getParameter("ano");
+    // Recuperar parâmetros da data
+    String dia = request.getParameter("dia");
+    String mes = request.getParameter("mes");
+    String ano = request.getParameter("ano");
 
-            // Format the date for display, handle nulls for robustness
-            String formattedDate = "Data Inválida";
-            try {
-                if (dia != null && mes != null && ano != null) {
-                    LocalDate dateFromParams = LocalDate.of(Integer.parseInt(ano), Integer.parseInt(mes), Integer.parseInt(dia));
-                    formattedDate = dateFromParams.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-                }
-            } catch (Exception e) {
-                // Log or handle the parsing error if needed
-                System.err.println("Error parsing date parameters: " + e.getMessage());
-            }
-        %>
-        
+    // Format the date for display, handle nulls for robustness
+    String formattedDate = "Data Inválida";
+    try {
+        if (dia != null && mes != null && ano != null) {
+            LocalDate dateFromParams = LocalDate.of(Integer.parseInt(ano), Integer.parseInt(mes), Integer.parseInt(dia));
+            formattedDate = dateFromParams.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        }
+    } catch (Exception e) {
+        // Log or handle the parsing error if needed
+        System.err.println("Error parsing date parameters: " + e.getMessage());
+    }
+%>
+    
     <div class="container data-container">
         <h1 class="mt-4 data-title"><i class="ph ph-calendar-blank"></i> Dados do Dia (<%= formattedDate %>)</h1>
         <%
@@ -96,22 +113,31 @@
 
                 // Se dados encontrados, atribui os valores à variáveis
                 if (rs.next()) {
-                    cafeDaManha = rs.getString("cafe_da_manha") != null ? rs.getString("cafe_da_manha") : "nenhum";
-                    almoco = rs.getString("almoco") != null ? rs.getString("almoco") : "nenhum";
-                    jantar = rs.getString("jantar") != null ? rs.getString("jantar") : "nenhum";
-                    lanches = rs.getString("lanches") != null ? rs.getString("lanches") : "nenhum";
-                    observacoesAlimentacao = rs.getString("observacoes_alimentacao") != null ? rs.getString("observacoes_alimentacao") : "nenhum";
+                    // *** MODIFICAÇÃO DE DADOS PARA QUEBRA DE LINHA ***
+                    // Substitui '-' por '<br>' para forçar a quebra de linha.
+                    // Adiciona classe CSS para garantir a exibição correta (white-space: normal).
+                    
+                    cafeDaManha = rs.getString("cafe_da_manha") != null ? rs.getString("cafe_da_manha").replace("-", "<br>") : "nenhum";
+                    almoco = rs.getString("almoco") != null ? rs.getString("almoco").replace("-", "<br>") : "nenhum";
+                    jantar = rs.getString("jantar") != null ? rs.getString("jantar").replace("-", "<br>") : "nenhum";
+                    lanches = rs.getString("lanches") != null ? rs.getString("lanches").replace("-", "<br>") : "nenhum";
+                    // Observações de Alimentação
+                    observacoesAlimentacao = rs.getString("observacoes_alimentacao") != null ? rs.getString("observacoes_alimentacao").replace("-", "<br>") : "nenhum";
 
+                    // Líquidos (não é necessário a quebra aqui, pois são valores únicos, mas mantido o tratamento de null)
                     agua = rs.getString("agua") != null ? rs.getString("agua") : "nenhum";
                     outrosLiquidos = rs.getString("outros_liquidos") != null ? rs.getString("outros_liquidos") : "nenhum";
                     observacoesLiquidos = rs.getString("observacoes_liquidos") != null ? rs.getString("observacoes_liquidos") : "nenhum";
 
-                    tipoTreino = rs.getString("tipo_treino") != null ? rs.getString("tipo_treino") : "nenhum";
+                    // Treino
+                    tipoTreino = rs.getString("tipo_treino") != null ? rs.getString("tipo_treino").replace("-", "<br>") : "nenhum";
                     duracaoTreino = rs.getString("duracao_treino") != null ? rs.getString("duracao_treino") : "nenhum";
                     intensidadeTreino = rs.getString("intensidade_treino") != null ? rs.getString("intensidade_treino") : "nenhum";
-                    detalhesExercicio = rs.getString("detalhes_exercicio") != null ? rs.getString("detalhes_exercicio") : "nenhum";
-                    observacoesExercicio = rs.getString("observacoes_exercicio") != null ? rs.getString("observacoes_exercicio") : "nenhum";
+                    detalhesExercicio = rs.getString("detalhes_exercicio") != null ? rs.getString("detalhes_exercicio").replace("-", "<br>") : "nenhum";
+                    // Observações de Treino
+                    observacoesExercicio = rs.getString("observacoes_exercicio") != null ? rs.getString("observacoes_exercicio").replace("-", "<br>") : "nenhum";
 
+                    // Avaliação Pessoal (não é necessário a quebra aqui, são níveis)
                     nivelFome = rs.getString("nivel_fome") != null ? rs.getString("nivel_fome") : "nenhum";
                     nivelEnergia = rs.getString("nivel_energia") != null ? rs.getString("nivel_energia") : "nenhum";
                     qualidadeSono = rs.getString("qualidade_sono") != null ? rs.getString("qualidade_sono") : "nenhum";
@@ -145,7 +171,6 @@
             }
         %>
 
-        <!-- Alimentação -->
         <div class="table-section">
             <h2 class="section-title"><i class="ph ph-fork-knife"></i> Alimentação</h2>
             <table class="table table-custom">
@@ -160,16 +185,15 @@
                 </thead>
                 <tbody>
                 <tr>
-                    <td><%= cafeDaManha %></td>
-                    <td><%= almoco %></td>
-                    <td><%= jantar %></td>
-                    <td><%= lanches %></td>
-                    <td><%= observacoesAlimentacao %></td>
+                    <td class="multi-line-cell"><%= cafeDaManha %></td>
+                    <td class="multi-line-cell"><%= almoco %></td>
+                    <td class="multi-line-cell"><%= jantar %></td>
+                    <td class="multi-line-cell"><%= lanches %></td>
+                    <td class="observacoes-cell"><%= observacoesAlimentacao %></td>
                 </tr>
                 </tbody>
             </table>
         </div>
-        <!-- Líquidos -->
         <div class="table-section">
             <h2 class="section-title"><i class="ph ph-drop"></i> Líquidos</h2>
             <table class="table table-custom">
@@ -189,7 +213,6 @@
                 </tbody>
             </table>
         </div>
-        <!-- Treino -->
         <div class="table-section">
             <h2 class="section-title"><i class="ph ph-barbell"></i> Treino</h2>
             <table class="table table-custom">
@@ -204,16 +227,15 @@
                 </thead>
                 <tbody>
                 <tr>
-                    <td><%= tipoTreino %></td>
+                    <td class="multi-line-cell"><%= tipoTreino %></td>
                     <td><%= duracaoTreino %></td>
                     <td><%= intensidadeTreino %></td>
-                    <td><%= detalhesExercicio %></td>
-                    <td><%= observacoesExercicio %></td>
+                    <td class="multi-line-cell"><%= detalhesExercicio %></td>
+                    <td class="observacoes-cell"><%= observacoesExercicio %></td>
                 </tr>
                 </tbody>
             </table>
         </div>
-        <!-- Avaliação Pessoal -->
         <div class="table-section">
             <h2 class="section-title"><i class="ph ph-user"></i> Avaliação Pessoal</h2>
             <table class="table table-custom">

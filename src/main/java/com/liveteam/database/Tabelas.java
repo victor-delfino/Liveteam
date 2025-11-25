@@ -115,8 +115,8 @@ public class Tabelas {
                     "id SERIAL PRIMARY KEY, " +
                     "subtreino_id INT NOT NULL, " +
                     "nome TEXT, " +
-                    "series VARCHAR(10), " +
-                    "repeticoes VARCHAR(10), " +
+                    "series VARCHAR(30), " +
+                    "repeticoes VARCHAR(30), " +
                     "FOREIGN KEY (subtreino_id) REFERENCES subtreino(id) ON DELETE CASCADE)");
 
             System.out.println("Tabelas de plano, dieta e treino criadas com sucesso!");

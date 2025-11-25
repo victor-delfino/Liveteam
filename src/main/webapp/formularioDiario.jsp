@@ -8,7 +8,6 @@
     <title>Inserir Dados Diários</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css" rel="stylesheet">
-    <!-- Phosphor Icons -->
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css" />
     <%@ include file="WEB-INF/jspf/html-head.jspf" %>
     <style>
@@ -117,7 +116,7 @@
             outline: none;
         }
         /* CORES INTENSIDADE --- ORIGINAL */
-        .btn-group.intensidade-group .btn-dark   { background: linear-gradient(90deg, #424242 60%, #23272b 100%) !important; color: #fff !important; }
+        .btn-group.intensidade-group .btn-dark    { background: linear-gradient(90deg, #424242 60%, #23272b 100%) !important; color: #fff !important; }
         .btn-group.intensidade-group .btn-warning { background: linear-gradient(90deg, #ffe082 60%, #ffb300 100%) !important; color: #333 !important; }
         .btn-group.intensidade-group .btn-danger  { background: linear-gradient(90deg, #ff5252 60%, #d32f2f 100%) !important; color: #fff !important; }
         .btn-group.intensidade-group .btn:focus,
@@ -142,9 +141,9 @@
         }
         .btn-group.avaliacao-group .btn-dark      { background: linear-gradient(90deg, #23272b 60%, #424242 100%) !important; color: #fff !important; }
         .btn-group.avaliacao-group .btn-danger    { background: linear-gradient(90deg, #f44336 60%, #ff8a65 100%) !important; color: #fff !important; }
-        .btn-group.avaliacao-group .btn-warning   { background: linear-gradient(90deg, #ffb74d 60%, #fbc02d 100%) !important; color: #23272b !important; }
+        .btn-group.avaliacao-group .btn-warning    { background: linear-gradient(90deg, #ffb74d 60%, #fbc02d 100%) !important; color: #23272b !important; }
         .btn-group.avaliacao-group .btn-info      { background: linear-gradient(90deg, #29b6f6 60%, #0288d1 100%) !important; color: #fff !important; }
-        .btn-group.avaliacao-group .btn-success   { background: linear-gradient(90deg, #66bb6a 60%, #2e7d32 100%) !important; color: #fff !important; }
+        .btn-group.avaliacao-group .btn-success    { background: linear-gradient(90deg, #66bb6a 60%, #2e7d32 100%) !important; color: #fff !important; }
         .btn-group.avaliacao-group {
             justify-content: space-between;
             gap: 8px;
@@ -202,8 +201,8 @@
         }
         
         input, textarea, select {
-    color: #fff !important;
-}
+            color: #fff !important;
+        }
     </style>
 </head>
 <body>
@@ -223,7 +222,6 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
 <div class="container mt-4 form-container">
     <h2><i class="ph ph-calendar-blank"></i> Inserir Informações do dia <%= diaAtual %>/<%= mesAtual %></h2>
     <form action="salvar-dados" method="post" id="formDiario" novalidate enctype="multipart/form-data">
-        <!-- Data (oculta) -->
         <div class="form-section" style="display:none;">
             <div class="row">
                 <div class="mb-3 col-md-4">
@@ -241,7 +239,6 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
             </div>
         </div>
         <div class="row">
-            <!-- Alimentação -->
             <div class="form-section col-md-3">
                 <h3><i class="ph ph-fork-knife"></i> Alimentação</h3>
                 <div class="mb-3">
@@ -250,17 +247,17 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
                         <div class="col-8">
                             <textarea id="cafe_da_manha" name="cafe_da_manha" class="form-control" maxlength="500" required></textarea>
                             <div class="invalid-feedback">Por favor, descreva seu café da manhã</div>
-                            
                         </div>
                         <div class="col-4">
-                                <input type="number" id="cafe_da_manha_calorias" name="cafe_da_manha_calorias" class="form-control" placeholder="Calorias">
-                            </div>
-                        <div class="col-4 d-flex align-items-center">
+                            <input type="number" id="cafe_da_manha_calorias" name="cafe_da_manha_calorias" class="form-control" placeholder="Calorias">
+                        </div>
+                        <div class="col-4 d-flex flex-column align-items-center">
                             <div class="img-upload-box" id="cafe_da_manha_imgBox" onclick="triggerInput('imageUploadCafe')">
                                 <i class="fas fa-camera"></i>
                                 <img id="cafe_da_manha_preview" alt="Prévia Café da Manhã">
                             </div>
                             <input type="file" id="imageUploadCafe" name="cafe_imagem" accept="image/*" onchange="uploadImage(this, 'cafe_da_manha')" hidden>
+                            <button type="button" class="btn btn-sm btn-outline-danger mt-1" id="cafe_da_manha_removeBtn" onclick="removeImage('cafe_da_manha')" style="display:none; font-size: 0.75rem; padding: 2px 5px;"><i class="ph ph-trash-simple"></i> Remover</button>
                         </div>
                     </div>
                 </div>
@@ -270,17 +267,17 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
                         <div class="col-8">
                             <textarea id="almoco" name="almoco" class="form-control" maxlength="500" required></textarea>
                             <div class="invalid-feedback">Por favor, descreva seu almoço</div>
-                            
                         </div>
                         <div class="col-4">
-                                <input type="number" id="almoco_calorias" name="almoco_calorias" class="form-control" placeholder="Calorias">
-                            </div>
-                        <div class="col-4 d-flex align-items-center">
+                            <input type="number" id="almoco_calorias" name="almoco_calorias" class="form-control" placeholder="Calorias">
+                        </div>
+                        <div class="col-4 d-flex flex-column align-items-center">
                             <div class="img-upload-box" id="almoco_imgBox" onclick="triggerInput('imageUploadAlmoco')">
                                 <i class="fas fa-camera"></i>
                                 <img id="almoco_preview" alt="Prévia Almoço">
                             </div>
                             <input type="file" id="imageUploadAlmoco" name="almoco_imagem" accept="image/*" onchange="uploadImage(this, 'almoco')" hidden>
+                            <button type="button" class="btn btn-sm btn-outline-danger mt-1" id="almoco_removeBtn" onclick="removeImage('almoco')" style="display:none; font-size: 0.75rem; padding: 2px 5px;"><i class="ph ph-trash-simple"></i> Remover</button>
                         </div>
                     </div>
                 </div>
@@ -290,17 +287,17 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
                         <div class="col-8">
                             <textarea id="jantar" name="jantar" class="form-control" maxlength="500" required></textarea>
                             <div class="invalid-feedback">Por favor, descreva seu jantar</div>
-                            
                         </div>
                         <div class="col-4">
-                                <input type="number" id="jantar_calorias" name="jantar_calorias" class="form-control" placeholder="Calorias">
-                            </div>
-                        <div class="col-4 d-flex align-items-center">
+                            <input type="number" id="jantar_calorias" name="jantar_calorias" class="form-control" placeholder="Calorias">
+                        </div>
+                        <div class="col-4 d-flex flex-column align-items-center">
                             <div class="img-upload-box" id="jantar_imgBox" onclick="triggerInput('imageUploadJantar')">
                                 <i class="fas fa-camera"></i>
                                 <img id="jantar_preview" alt="Prévia Jantar">
                             </div>
                             <input type="file" id="imageUploadJantar" name="jantar_imagem" accept="image/*" onchange="uploadImage(this, 'jantar')" hidden>
+                            <button type="button" class="btn btn-sm btn-outline-danger mt-1" id="jantar_removeBtn" onclick="removeImage('jantar')" style="display:none; font-size: 0.75rem; padding: 2px 5px;"><i class="ph ph-trash-simple"></i> Remover</button>
                         </div>
                     </div>
                 </div>
@@ -311,14 +308,15 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
                             <textarea id="lanches" name="lanches" class="form-control" maxlength="500"></textarea>
                         </div>
                         <div class="col-4">
-                                <input type="number" id="lanches_calorias" name="lanches_calorias"  class="form-control" placeholder="Calorias">
-                            </div>
-                        <div class="col-4 d-flex align-items-center">
+                            <input type="number" id="lanches_calorias" name="lanches_calorias"  class="form-control" placeholder="Calorias">
+                        </div>
+                        <div class="col-4 d-flex flex-column align-items-center">
                             <div class="img-upload-box" id="lanches_imgBox" onclick="triggerInput('imageUploadLanches')">
                                 <i class="fas fa-camera"></i>
                                 <img id="lanches_preview" alt="Prévia Lanches">
                             </div>
                             <input type="file" id="imageUploadLanches" name="lanches_imagem" accept="image/*" onchange="uploadImage(this, 'lanches')" hidden>
+                            <button type="button" class="btn btn-sm btn-outline-danger mt-1" id="lanches_removeBtn" onclick="removeImage('lanches')" style="display:none; font-size: 0.75rem; padding: 2px 5px;"><i class="ph ph-trash-simple"></i> Remover</button>
                         </div>
                     </div>
                 </div>
@@ -327,7 +325,6 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
                     <textarea id="observacoes_alimentacao" name="observacoes_alimentacao" class="form-control" maxlength="500"></textarea>
                 </div>
             </div>
-            <!-- Líquidos -->
             <div class="form-section col-md-3">
                 <h3><i class="ph ph-drop"></i> Ingestão de Líquidos</h3>
                 <div class="mb-3">
@@ -344,7 +341,6 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
                     <textarea id="observacoes_liquidos" name="observacoes_liquidos" class="form-control" maxlength="500"></textarea>
                 </div>
             </div>
-            <!-- Exercícios -->
             <div class="form-section col-md-3">
                 <h3><i class="ph ph-barbell"></i> Exercícios</h3>
                 <div class="mb-3">
@@ -378,7 +374,6 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
                     <textarea id="observacoes_exercicio" name="observacoes_exercicio" class="form-control" maxlength="500"></textarea>
                 </div>
             </div>
-            <!-- Avaliação Pessoal -->
             <div class="form-section col-md-3">
                 <h3><i class="ph ph-user"></i> Avaliação Pessoal</h3>
                 <div class="mb-3">
@@ -440,7 +435,6 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
         </div>
     </form>
 </div>
-<!-- Modal de Erro -->
 <div class="modal fade" id="modalMensagem" tabindex="-1" aria-labelledby="modalMensagemLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content" style="background: #23272b; color: #fff;">
@@ -461,7 +455,6 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
         </div>
     </div>
 </div>
-<!-- Modal de Sucesso -->
 <div class="modal fade" id="modalSucesso" tabindex="-1" aria-labelledby="modalSucessoLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content" style="background: #23272b; color: #A0D683;">
@@ -475,29 +468,90 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
         </div>
     </div>
 </div>
+<div class="modal fade" id="modalLoading" tabindex="-1" aria-labelledby="modalLoadingLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content text-center" style="background: #23272b; color: #A0D683; border-radius: 12px; border: 1px solid #A0D683;">
+            <div class="modal-body py-4">
+                <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Processando...</span>
+                </div>
+                <p class="mt-3 mb-0" id="modalLoadingLabel" style="font-weight: 600;">Analisando Imagem...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <%@ include file="WEB-INF/jspf/footer.jspf" %>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    // Inicializa o modal de carregamento uma única vez
+    const modalLoading = new bootstrap.Modal(document.getElementById('modalLoading'));
+
     function triggerInput(inputId) {
         document.getElementById(inputId).click();
-        }
-    function uploadImage(inputElement, refId) {
-        console.log('IDSS recebidos:', refId);
-        const file = inputElement.files[0];
-        if (!file) return;
+    }
+    
+    // Função para remover a imagem e limpar os campos relacionados
+    function removeImage(refId) {
+        const inputElementId = 'imageUpload' + refId.charAt(0).toUpperCase() + refId.slice(1);
+        const inputElement = document.getElementById(inputElementId);
         const imgBox = document.getElementById(refId + "_imgBox");
         const preview = document.getElementById(refId + "_preview");
+        const removeBtn = document.getElementById(refId + "_removeBtn");
+        const textarea = document.getElementById(refId);
+        const caloriasInput = document.getElementById(refId + "_calorias");
+
+        if (inputElement) {
+            inputElement.value = ""; 
+        }
+
+        if (imgBox) {
+            imgBox.classList.remove("has-img");
+        }
+        if (preview) {
+            preview.src = "";
+        }
+        if (removeBtn) {
+            removeBtn.style.display = 'none';
+        }
+        if (textarea) textarea.value = "";
+        if (caloriasInput) caloriasInput.value = "";
+
+        console.log(`Imagem de ${refId} removida.`);
+    }
+
+    // Função para fazer o upload da imagem, mostrar loading e analisar
+    function uploadImage(inputElement, refId) {
+        const file = inputElement.files[0];
+        const imgBox = document.getElementById(refId + "_imgBox");
+        const preview = document.getElementById(refId + "_preview");
+        const removeBtn = document.getElementById(refId + "_removeBtn");
+        
+        if (!file) {
+            removeImage(refId); 
+            return;
+        }
+
+        // Exibir preview da imagem
         if (preview && imgBox) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 preview.src = e.target.result;
                 imgBox.classList.add("has-img");
+                if (removeBtn) {
+                    removeBtn.style.display = 'inline-block';
+                }
             };
             reader.readAsDataURL(file);
         }
+
+        // Mostrar o loading antes de enviar
+        modalLoading.show();
+
         // Envia imagem para o ImageAnalysisServlet via AJAX
         const formData = new FormData();
         formData.append("image", file);
+        
         fetch("ImageAnalysisServlet", {
             method: "POST",
             body: formData
@@ -507,11 +561,14 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
             return response.json();
         })
         .then(data => {
+            // Esconder o loading após o sucesso
+            modalLoading.hide();
+
             const textarea = document.getElementById(refId);
             const caloriasInput = document.getElementById(refId + "_calorias");
+            
             if (data.items && Array.isArray(data.items) && data.items.length > 0) {
                 const texto = data.items.map(item => {
-                    console.log(item);
                     const nome = item.alimento?.trim() || 'Alimento desconhecido';
                     const quantidade = item.quantidade?.trim() || 'Sem Quantidade Definida';
                     return `- ` + nome +' ' + quantidade;
@@ -527,9 +584,16 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
                 if (textarea) textarea.value = "Não foi possível analisar a imagem.";
                 if (caloriasInput) caloriasInput.value = "";
             }
+        })
+        .catch(error => {
+            // Esconder o loading após o erro
+            modalLoading.hide();
+            console.error("Erro na análise da imagem:", error);
+            // Opcional: mostrar um modal de erro ou alerta para o usuário
         });
     }
-    // Validação do formulário
+
+    // Validação do formulário (mantida)
     const formularioDiario = document.getElementById('formDiario');
     formularioDiario.addEventListener('submit', function(event) {
         let isValid = true;
@@ -556,11 +620,6 @@ if (request.getSession(false) == null || request.getSession(false).getAttribute(
             event.preventDefault();
             new bootstrap.Modal(document.getElementById('modalMensagem')).show();
         }
-        // Se quiser modal de sucesso sem enviar para o backend, descomente:
-        // else {
-        //     event.preventDefault();
-        //     showSuccessModal();
-        // }
     });
     
 function showSuccessModal() {

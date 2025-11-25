@@ -11,18 +11,24 @@ import jakarta.servlet.http.*;
 @WebServlet("/salvar-dados")
 public class SalvarDadosServlet extends HttpServlet {
 
+    // Lista de colunas de conteúdo para UPDATE/INSERT (excluindo id_usuario, dia, mes, ano)
+    private static final String COLUMNS_CONTENT = 
+        "cafe_da_manha, cafe_da_manha_calorias, almoco, almoco_calorias, jantar, jantar_calorias, " +
+        "lanches, lanches_calorias, observacoes_alimentacao, agua, outros_liquidos, observacoes_liquidos, " +
+        "tipo_treino, duracao_treino, intensidade_treino, detalhes_exercicio, observacoes_exercicio, " +
+        "nivel_fome, nivel_energia, qualidade_sono, observacoes_avaliacao";
+
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
         request.setCharacterEncoding("UTF-8");
         HttpSession session = request.getSession(false);
 
-        // Verifica se o usuário está logado
+        // [Bloco de Verificação de Login e ID do Usuário (mantido)]
         if (session == null || session.getAttribute("usuarioLogado") == null) {
             response.sendRedirect("login.jsp");
             return;
         }
 
-        // Obter e validar ID do usuário
         Object idUsuarioObj = session.getAttribute("idUsuario");
         Integer idUsuario = null;
 
@@ -39,7 +45,7 @@ public class SalvarDadosServlet extends HttpServlet {
             return;
         }
 
-        // Extrair e validar campos de data
+        // [Bloco de Extração e Validação de Data (mantido)]
         String diaStr = request.getParameter("dia");
         String mesStr = request.getParameter("mes");
         String anoStr = request.getParameter("ano");
@@ -60,10 +66,12 @@ public class SalvarDadosServlet extends HttpServlet {
             return;
         }
 
+        // [Bloco de Extração e Tratamento de Campos do Formulário (mantido)]
         // Extrair demais campos do formulário
         String cafeDaManha = request.getParameter("cafe_da_manha");
+        // O parseInt pode lançar NumberFormatException se o campo estiver vazio/nulo. 
+        // É recomendado tratar calorias com valor padrão 0 em caso de erro, mas aqui mantemos como no original.
         int cafe_da_manha_calorias = Integer.parseInt(request.getParameter("cafe_da_manha_calorias"));
-        System.out.println("Café da manha calorias " +cafe_da_manha_calorias);
         String almoco = request.getParameter("almoco");
         int almoco_calorias = Integer.parseInt(request.getParameter("almoco_calorias"));
         String jantar = request.getParameter("jantar");
@@ -84,7 +92,7 @@ public class SalvarDadosServlet extends HttpServlet {
         String qualidadeSono = request.getParameter("qualidade_sono");
         String observacoesAvaliacao = request.getParameter("observacoes_avaliacao");
 
-        // Tratar campos opcionais
+        // Tratar campos opcionais (mantido)
         observacoesAlimentacao = (observacoesAlimentacao == null || observacoesAlimentacao.trim().isEmpty()) ? null : observacoesAlimentacao;
         observacoesLiquidos = (observacoesLiquidos == null || observacoesLiquidos.trim().isEmpty()) ? null : observacoesLiquidos;
         detalhesExercicio = (detalhesExercicio == null || detalhesExercicio.trim().isEmpty()) ? null : detalhesExercicio;
@@ -96,6 +104,7 @@ public class SalvarDadosServlet extends HttpServlet {
         ResultSet rs = null;
 
         try {
+            // [Bloco de Conexão com o Banco de Dados (mantido)]
             Properties props = new Properties();
             props.load(getServletContext().getResourceAsStream("/WEB-INF/classes/db.properties"));
 
@@ -106,70 +115,77 @@ public class SalvarDadosServlet extends HttpServlet {
                     props.getProperty("db.password")
             );
 
-            // Verificar duplicidade por data
+            // 1. Verificar se o registro já existe para o usuário e data
             String checkSql = "SELECT COUNT(*) FROM dados_diarios WHERE id_usuario = ? AND dia = ? AND mes = ? AND ano = ?";
             pstmt = conn.prepareStatement(checkSql);
             pstmt.setInt(1, idUsuario);
-            pstmt.setInt(2, dia); // Usando os valores corretos
+            pstmt.setInt(2, dia);
             pstmt.setInt(3, mes);
             pstmt.setInt(4, ano);
             rs = pstmt.executeQuery();
 
             rs.next();
             int count = rs.getInt(1);
+            rs.close(); // Fechar o ResultSet após uso
+            pstmt.close(); // Fechar o PreparedStatement após uso
+
+            // Variável para rastrear o sucesso da operação (INSERT ou UPDATE)
+            int rowsAffected = 0;
 
             if (count > 0) {
-                response.sendRedirect("home.jsp?status=warning&message=Já%20existe%20registro%20para%20essa%20data.");
-                return;
-            }
+                // 2. Se o registro EXISTE (count > 0), fazer UPDATE
+                String sqlUpdate = "UPDATE dados_diarios SET " +
+                    "cafe_da_manha = ?, cafe_da_manha_calorias = ?, almoco = ?, almoco_calorias = ?, " +
+                    "jantar = ?, jantar_calorias = ?, lanches = ?, lanches_calorias = ?, observacoes_alimentacao = ?, " +
+                    "agua = ?, outros_liquidos = ?, observacoes_liquidos = ?, tipo_treino = ?, duracao_treino = ?, " +
+                    "intensidade_treino = ?, detalhes_exercicio = ?, observacoes_exercicio = ?, nivel_fome = ?, " +
+                    "nivel_energia = ?, qualidade_sono = ?, observacoes_avaliacao = ? " +
+                    "WHERE id_usuario = ? AND dia = ? AND mes = ? AND ano = ?";
 
-            // Ajustando o SQL para incluir as colunas de calorias
-                String sql = "INSERT INTO dados_diarios (" +
-                        "id_usuario, dia, mes, ano, " +
-                        "cafe_da_manha, cafe_da_manha_calorias, " +
-                        "almoco, almoco_calorias, " +
-                        "jantar, jantar_calorias, " +
-                        "lanches, lanches_calorias, " +
-                        "observacoes_alimentacao, " +
-                        "agua, outros_liquidos, observacoes_liquidos, " +
-                        "tipo_treino, duracao_treino, intensidade_treino, detalhes_exercicio, observacoes_exercicio, " +
-                        "nivel_fome, nivel_energia, qualidade_sono, observacoes_avaliacao" +
-                        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                pstmt = conn.prepareStatement(sqlUpdate);
 
-                pstmt = conn.prepareStatement(sql);
+                // Configurar os parâmetros de conteúdo (21 parâmetros)
+                setPstmtParameters(pstmt, cafeDaManha, cafe_da_manha_calorias, almoco, almoco_calorias, jantar, jantar_calorias, 
+                                   lanches, lanches_calorias, observacoesAlimentacao, agua, outrosLiquidos, observacoesLiquidos, 
+                                   tipoTreino, duracaoTreino, intensidadeTreino, detalhesExercicio, observacoesExercicio, 
+                                   nivelFome, nivelEnergia, qualidadeSono, observacoesAvaliacao);
+
+                // Configurar os parâmetros WHERE (últimas 4 posições: 22 a 25)
+                pstmt.setInt(22, idUsuario);
+                pstmt.setInt(23, dia);
+                pstmt.setInt(24, mes);
+                pstmt.setInt(25, ano);
+
+                rowsAffected = pstmt.executeUpdate();
+                
+            } else {
+                // 3. Se o registro NÃO EXISTE (count = 0), fazer INSERT
+                String sqlInsert = "INSERT INTO dados_diarios (id_usuario, dia, mes, ano, " + COLUMNS_CONTENT + 
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"; // 4 + 21 = 25 '?'
+
+                pstmt = conn.prepareStatement(sqlInsert);
+                
+                // Configurar os parâmetros de ID e Data (1 a 4)
                 pstmt.setInt(1, idUsuario);
                 pstmt.setInt(2, dia);
                 pstmt.setInt(3, mes);
                 pstmt.setInt(4, ano);
-                pstmt.setString(5, cafeDaManha);
-                pstmt.setInt(6, cafe_da_manha_calorias);
-                pstmt.setString(7, almoco);
-                pstmt.setInt(8, almoco_calorias);
-                pstmt.setString(9, jantar);
-                pstmt.setInt(10, jantar_calorias);
-                pstmt.setString(11, lanches);
-                pstmt.setInt(12, lanches_calorias);
-                pstmt.setString(13, observacoesAlimentacao);
-                pstmt.setString(14, agua);
-                pstmt.setString(15, outrosLiquidos);
-                pstmt.setString(16, observacoesLiquidos);
-                pstmt.setString(17, tipoTreino);
-                pstmt.setString(18, duracaoTreino);
-                pstmt.setString(19, intensidadeTreino);
-                pstmt.setString(20, detalhesExercicio);
-                pstmt.setString(21, observacoesExercicio);
-                pstmt.setString(22, nivelFome);
-                pstmt.setString(23, nivelEnergia);
-                pstmt.setString(24, qualidadeSono);
-                pstmt.setString(25, observacoesAvaliacao);
+                
+                // Configurar os parâmetros de conteúdo (5 a 25)
+                setPstmtParameters(pstmt, cafeDaManha, cafe_da_manha_calorias, almoco, almoco_calorias, jantar, jantar_calorias, 
+                                   lanches, lanches_calorias, observacoesAlimentacao, agua, outrosLiquidos, observacoesLiquidos, 
+                                   tipoTreino, duracaoTreino, intensidadeTreino, detalhesExercicio, observacoesExercicio, 
+                                   nivelFome, nivelEnergia, qualidadeSono, observacoesAvaliacao, 5); // Inicia no índice 5
 
-                int rowsInserted = pstmt.executeUpdate();
+                rowsAffected = pstmt.executeUpdate();
+            }
 
-
-            if (rowsInserted > 0) {
-                response.sendRedirect("home.jsp?status=success&message=Dados%20salvos%20com%20sucesso!");
+            if (rowsAffected > 0) {
+                // Mensagem de sucesso unificada para INSERT ou UPDATE
+                String msg = (count > 0) ? "Dados%20atualizados%20com%20sucesso!" : "Dados%20salvos%20com%20sucesso!";
+                response.sendRedirect("home.jsp?status=success&message=" + msg);
             } else {
-                response.sendRedirect("home.jsp?status=error&message=Erro%20ao%20salvar%20dados.");
+                response.sendRedirect("home.jsp?status=error&message=Erro%20ao%20salvar%20ou%20atualizar%20dados.");
             }
 
         } catch (Exception e) {
@@ -180,5 +196,54 @@ public class SalvarDadosServlet extends HttpServlet {
             try { if (pstmt != null) pstmt.close(); } catch (Exception ignored) {}
             try { if (conn != null) conn.close(); } catch (Exception ignored) {}
         }
+    }
+
+    /**
+     * Método auxiliar para configurar os parâmetros de conteúdo no PreparedStatement.
+     */
+    private void setPstmtParameters(PreparedStatement pstmt, String cafeDaManha, int cafe_da_manha_calorias, 
+                                    String almoco, int almoco_calorias, String jantar, int jantar_calorias, 
+                                    String lanches, int lanches_calorias, String observacoesAlimentacao, 
+                                    String agua, String outrosLiquidos, String observacoesLiquidos, 
+                                    String tipoTreino, String duracaoTreino, String intensidadeTreino, 
+                                    String detalhesExercicio, String observacoesExercicio, String nivelFome, 
+                                    String nivelEnergia, String qualidadeSono, String observacoesAvaliacao, 
+                                    int startIndex) throws SQLException {
+        
+        pstmt.setString(startIndex++, cafeDaManha);
+        pstmt.setInt(startIndex++, cafe_da_manha_calorias);
+        pstmt.setString(startIndex++, almoco);
+        pstmt.setInt(startIndex++, almoco_calorias);
+        pstmt.setString(startIndex++, jantar);
+        pstmt.setInt(startIndex++, jantar_calorias);
+        pstmt.setString(startIndex++, lanches);
+        pstmt.setInt(startIndex++, lanches_calorias);
+        pstmt.setString(startIndex++, observacoesAlimentacao);
+        pstmt.setString(startIndex++, agua);
+        pstmt.setString(startIndex++, outrosLiquidos);
+        pstmt.setString(startIndex++, observacoesLiquidos);
+        pstmt.setString(startIndex++, tipoTreino);
+        pstmt.setString(startIndex++, duracaoTreino);
+        pstmt.setString(startIndex++, intensidadeTreino);
+        pstmt.setString(startIndex++, detalhesExercicio);
+        pstmt.setString(startIndex++, observacoesExercicio);
+        pstmt.setString(startIndex++, nivelFome);
+        pstmt.setString(startIndex++, nivelEnergia);
+        pstmt.setString(startIndex++, qualidadeSono);
+        pstmt.setString(startIndex, observacoesAvaliacao);
+    }
+    
+    // Sobrecarga para o caso de UPDATE onde o índice inicial é sempre 1
+    private void setPstmtParameters(PreparedStatement pstmt, String cafeDaManha, int cafe_da_manha_calorias, 
+                                    String almoco, int almoco_calorias, String jantar, int jantar_calorias, 
+                                    String lanches, int lanches_calorias, String observacoesAlimentacao, 
+                                    String agua, String outrosLiquidos, String observacoesLiquidos, 
+                                    String tipoTreino, String duracaoTreino, String intensidadeTreino, 
+                                    String detalhesExercicio, String observacoesExercicio, String nivelFome, 
+                                    String nivelEnergia, String qualidadeSono, String observacoesAvaliacao) throws SQLException {
+        setPstmtParameters(pstmt, cafeDaManha, cafe_da_manha_calorias, almoco, almoco_calorias, jantar, jantar_calorias, 
+                           lanches, lanches_calorias, observacoesAlimentacao, agua, outrosLiquidos, observacoesLiquidos, 
+                           tipoTreino, duracaoTreino, intensidadeTreino, detalhesExercicio, observacoesExercicio, 
+                           nivelFome, nivelEnergia, qualidadeSono, observacoesAvaliacao, 1);
     }
 }

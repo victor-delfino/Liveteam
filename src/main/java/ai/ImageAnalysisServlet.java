@@ -30,7 +30,7 @@ import org.json.JSONObject;
 @WebServlet("/ImageAnalysisServlet")
 @MultipartConfig
 public class ImageAnalysisServlet extends HttpServlet {
-    private static final String API_KEY = "";
+    private static final String API_KEY = "AIzaSyDT0mk-zOEp2UVX7eWUmDenkvJZVwJTxdA";
     private static final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY;
 
     @Override

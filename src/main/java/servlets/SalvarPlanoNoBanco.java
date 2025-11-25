@@ -1,4 +1,4 @@
- package servlets;
+package servlets;
 
 import java.sql.*;
 import java.io.InputStream;
@@ -8,8 +8,26 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class SalvarPlanoNoBanco {
+    
+    // Método auxiliar para limpar strings numéricas (ex: "2600kcal" -> 2600)
+    private int parseJsonInt(JSONObject json, String key) {
+        Object value = json.opt(key);
+        if (value == null) return 0;
+        
+        String s = value.toString().toLowerCase().trim();
+        
+        // Tenta remover unidades comuns como 'kcal', 'g', etc.
+        s = s.replaceAll("[^0-9.]", ""); 
+        
+        try {
+            // Converte para int
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            // Se falhar a conversão (ex: string vazia ou formato inválido), retorna 0
+            return 0;
+        }
+    }
 
-    // Agora recebe também o JSON completo para salvar como string
     public void salvarPlanoNoBanco(int idUsuario, JSONObject planoDietaJson, JSONObject planoTreinoJson) throws Exception {
         Connection conn = null;
         PreparedStatement psPlano = null, psDieta = null, psMacro = null, psRefeicoes = null;
@@ -30,14 +48,12 @@ public class SalvarPlanoNoBanco {
             String password = props.getProperty("db.password");
             String driver = props.getProperty("db.driver");
 
-            // Registrar driver JDBC
             Class.forName(driver);
 
-            // Conectar ao banco
             conn = DriverManager.getConnection(url, username, password);
             conn.setAutoCommit(false);
 
-            // Inserir plano 
+            // 1. Inserir plano (ID)
             String sqlPlano = "INSERT INTO plano (id_usuario) VALUES (?)";
             psPlano = conn.prepareStatement(sqlPlano, Statement.RETURN_GENERATED_KEYS);
             psPlano.setInt(1, idUsuario);
@@ -49,23 +65,24 @@ public class SalvarPlanoNoBanco {
             int planoId = rsKeys.getInt(1);
             rsKeys.close();
             
-            // Inserir dieta
+            // 2. Inserir dieta
             String sqlDieta = "INSERT INTO dieta (plano_id, objetivo, calorias_totais, observacoes, meta_agua) VALUES (?, ?, ?, ?, ?)";
             psDieta = conn.prepareStatement(sqlDieta, Statement.RETURN_GENERATED_KEYS);
             psDieta.setInt(1, planoId);
             psDieta.setString(2, planoDietaJson.optString("objetivo"));
-            psDieta.setInt(3, planoDietaJson.optInt("calorias_totais", 0));
+            
+            // USANDO O NOVO MÉTODO AUXILIAR PARA CALORIAS
+            int caloriasTotais = parseJsonInt(planoDietaJson, "calorias_totais");
+            psDieta.setInt(3, caloriasTotais); 
+            
             psDieta.setString(4, planoDietaJson.optString("observacoes"));
 
-            Object metaAguaObj = planoDietaJson.opt("meta_agua");
-            if (metaAguaObj != null && !metaAguaObj.toString().isBlank()) {
-                try {
-                    psDieta.setInt(5, Integer.parseInt(metaAguaObj.toString()));
-                } catch(NumberFormatException e) {
-                    psDieta.setNull(5, java.sql.Types.INTEGER);
-                }
+            // USANDO O NOVO MÉTODO AUXILIAR PARA META_AGUA
+            int metaAgua = parseJsonInt(planoDietaJson, "meta_agua");
+            if (metaAgua > 0) {
+                 psDieta.setInt(5, metaAgua);
             } else {
-                psDieta.setNull(5, java.sql.Types.INTEGER);
+                 psDieta.setNull(5, java.sql.Types.INTEGER);
             }
 
             psDieta.executeUpdate();
@@ -76,19 +93,22 @@ public class SalvarPlanoNoBanco {
             int dietaId = rsKeys.getInt(1);
             rsKeys.close();
 
-            // Inserir macronutrientes
-            JSONObject macro = planoDietaJson.optJSONObject("macronutrientes");
+            // 3. Inserir macronutrientes 
+            JSONObject macro = planoDietaJson.optJSONObject("meta_macronutrientes");
             if (macro != null) {
                 String sqlMacro = "INSERT INTO macronutrientes (dieta_id, proteinas, carboidratos, gorduras) VALUES (?, ?, ?, ?)";
                 psMacro = conn.prepareStatement(sqlMacro);
                 psMacro.setInt(1, dietaId);
-                psMacro.setInt(2, macro.optInt("proteinas", 0));
-                psMacro.setInt(3, macro.optInt("carboidratos", 0));
-                psMacro.setInt(4, macro.optInt("gorduras", 0));
+                
+                // USANDO O NOVO MÉTODO AUXILIAR PARA MACROS
+                psMacro.setInt(2, parseJsonInt(macro, "proteinas_g")); 
+                psMacro.setInt(3, parseJsonInt(macro, "carboidratos_g"));
+                psMacro.setInt(4, parseJsonInt(macro, "gorduras_g"));
+                
                 psMacro.executeUpdate();
             }
 
-            // Inserir refeicoes
+            // 4. Inserir refeicoes 
             JSONObject refeicoes = planoDietaJson.optJSONObject("refeicoes");
             if (refeicoes != null) {
                 String sqlRefeicoes = "INSERT INTO refeicoes (dieta_id, cafe_da_manha, almoco, lanche_tarde, jantar) VALUES (?, ?, ?, ?, ?)";
@@ -101,7 +121,7 @@ public class SalvarPlanoNoBanco {
                 psRefeicoes.executeUpdate();
             }
 
-            // Inserir treino
+            // 5. Inserir treino
             String sqlTreino = "INSERT INTO treino (plano_id, divisao, justificativa_divisao, observacoes) VALUES (?, ?, ?, ?)";
             psTreino = conn.prepareStatement(sqlTreino, Statement.RETURN_GENERATED_KEYS);
             psTreino.setInt(1, planoId);
@@ -116,15 +136,18 @@ public class SalvarPlanoNoBanco {
             int treinoId = rsKeys.getInt(1);
             rsKeys.close();
 
-            // Salvar subtreinos e exercícios (ex: treino A, B, C)
+            // 6. Salvar subtreinos e exercícios
             salvarSubtreinoComExercicios(conn, treinoId, "A", planoTreinoJson.optJSONObject("treino_a"));
             salvarSubtreinoComExercicios(conn, treinoId, "B", planoTreinoJson.optJSONObject("treino_b"));
             salvarSubtreinoComExercicios(conn, treinoId, "C", planoTreinoJson.optJSONObject("treino_c"));
 
-            conn.commit();
+            conn.commit(); 
 
         } catch (Exception e) {
-            if (conn != null) conn.rollback();
+            if (conn != null) {
+                 System.err.println("Erro na transação. Realizando rollback.");
+                 conn.rollback();
+            }
             throw e;
         } finally {
             if (rsKeys != null) try { rsKeys.close(); } catch(SQLException e) {}
@@ -177,4 +200,4 @@ public class SalvarPlanoNoBanco {
             if (psExercicio != null) try { psExercicio.close(); } catch(SQLException e) {}
         }
     }
-} 
+}
